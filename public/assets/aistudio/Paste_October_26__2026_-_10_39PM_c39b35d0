@@ -1,0 +1,1026 @@
+# Escopo completo — aplicativo de gestão para salões de beleza
+
+O projeto será uma plataforma **SaaS** para gestão completa de salões: cada estabelecimento terá seu próprio ambiente, sua logo, suas cores, sua equipe e seus dados, mantendo o layout da imagem como referência visual.
+
+O sistema deverá conectar toda a operação:
+
+> Cliente entra em contato → escolhe o serviço → agenda → confirma → chega ao salão → é atendido → fecha a comanda → paga → recebe o comprovante → entra no acompanhamento de pós-atendimento.
+
+A gestão também deverá acompanhar estoque, comissões, despesas, recebíveis, caixa, faturamento e resultados por profissional e por unidade.
+
+Abaixo está o escopo proposto para orientar design, desenvolvimento e divisão das entregas. As funcionalidades são requisitos planejados, não recursos já implementados.
+
+## 1. Conceito do produto
+
+Uma plataforma com três ambientes conectados:
+
+| Ambiente | Quem utiliza | Objetivo |
+|---|---|---|
+| Gestão do salão | Proprietário, gerente, recepção e financeiro | Administrar agenda, atendimento, equipe e resultados |
+| Área do profissional | Cabeleireiros, manicures, esteticistas e demais profissionais | Consultar agenda, realizar atendimentos e acompanhar comissões |
+| Área do cliente | Clientes do salão | Agendar, confirmar, consultar histórico e gerenciar seus horários |
+
+Também haverá um painel administrativo da plataforma para cadastrar salões, administrar planos e acompanhar a operação do software.
+
+Agenda, estoque, comissões e financeiro devem compartilhar os mesmos registros, evitando controles paralelos. Essa integração também aparece como eixo central em soluções do segmento, que conectam agendamento, cobrança, repasses e recebimentos. [negocios.trinks](https://negocios.trinks.com/solucoes/)
+
+## 2. Layout e identidade visual
+
+### 2.1. Direção visual baseada na imagem
+
+Preservar a composição apresentada na referência:
+
+- Menu lateral fixo com logo do salão.
+- Barra superior com busca global, data, notificações e perfil.
+- Título da página com descrição contextual.
+- Filtro de período no topo.
+- Indicadores em cartões.
+- Bloco de ações rápidas.
+- Painéis de atendimentos em andamento.
+- Lista dos próximos clientes.
+- Cartões com cantos arredondados.
+- Ícones de traço fino.
+- Títulos com tipografia serifada e textos operacionais com tipografia sem serifa.
+- Hierarquia visual elegante, com fundos claros e áreas de destaque na cor principal.
+
+Na referência, a composição utiliza verde-escuro, dourado e tons claros. Essas cores serão o tema inicial, não uma identidade obrigatória para todos os salões. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/images/127134288/cec8d919-f6e4-4719-8e0f-f61470a439c9/studio-dashboard-concept.jpg)
+
+### 2.2. Personalização por salão
+
+Tela “Configurações → Aparência”, contendo:
+
+| Configuração | Aplicação |
+|---|---|
+| Logo principal | Menu lateral, página de acesso e área do cliente |
+| Logo alternativa | Fundos claros ou escuros |
+| Ícone reduzido | Menu recolhido e identificação compacta |
+| Nome comercial | Cabeçalhos, documentos e comunicação |
+| Cor principal | Menu, botões e elementos de destaque |
+| Cor secundária | Ações complementares e componentes |
+| Cor de destaque | Detalhes, seleção e indicadores |
+| Fundo do sistema | Superfícies e áreas de conteúdo |
+| Tema | Claro, escuro ou padrão do salão |
+| Mensagem institucional | Frase no painel e na página de agendamento |
+| Capa e imagens | Página pública do salão |
+| Pré-visualização | Conferência antes de publicar |
+
+Regras propostas:
+
+- Aplicar a identidade em todas as telas do salão.
+- Preservar cores semânticas de erro, alerta e sucesso.
+- Validar contraste para evitar textos ilegíveis.
+- Permitir restaurar o tema padrão.
+- Não permitir que um salão altere o tema de outro.
+- Usar cores configuráveis por variáveis de tema, sem recriar cada tela.
+- Oferecer endereço público próprio e domínio personalizado como recurso opcional.
+
+### 2.3. Experiência em diferentes dispositivos
+
+- Desktop: gestão completa e agenda ampliada.
+- Tablet: recepção e acompanhamento de atendimentos.
+- Celular: agenda do profissional e operação simplificada.
+- Área do cliente adaptada ao celular.
+- Aplicação web instalável como primeira entrega.
+- Aplicativos nativos como expansão, caso haja necessidade específica.
+
+## 3. Estrutura dos menus
+
+### Painel do salão
+
+1. Painel de operação.
+2. Agenda.
+3. Recepção e fila.
+4. Atendimentos e comandas.
+5. Clientes e CRM.
+6. Serviços.
+7. Produtos e estoque.
+8. Profissionais.
+9. Comissões.
+10. Pacotes, planos e assinaturas.
+11. Financeiro e caixa.
+12. Compras e fornecedores.
+13. Marketing e automações.
+14. Relatórios.
+15. Configurações.
+
+O menu deverá mudar conforme as permissões do usuário.
+
+## 4. Painel de operação
+
+A página inicial deverá seguir a lógica da imagem: mostrar o que está acontecendo agora e permitir agir sem navegar por várias telas. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/images/127134288/cec8d919-f6e4-4719-8e0f-f61470a439c9/studio-dashboard-concept.jpg)
+
+### Indicadores operacionais
+
+- Clientes previstos para hoje.
+- Agendamentos aguardando confirmação.
+- Clientes que ainda vão chegar.
+- Clientes na recepção.
+- Atendimentos em andamento.
+- Atendimentos concluídos.
+- Cancelamentos e faltas.
+- Horários disponíveis.
+- Profissionais disponíveis.
+
+### Indicadores financeiros
+
+Visíveis somente para os perfis autorizados:
+
+- Vendas do dia.
+- Valores efetivamente recebidos.
+- Valores pendentes.
+- Despesas pagas.
+- Saldo da sessão de caixa.
+- Comissões geradas.
+- Ticket médio.
+- Comparação com o período anterior.
+
+### Ações rápidas
+
+- Novo agendamento.
+- Cadastrar ou buscar cliente.
+- Fazer check-in.
+- Abrir comanda.
+- Registrar pagamento.
+- Registrar despesa.
+- Consultar agenda da equipe.
+- Abrir ou fechar caixa.
+
+### Listas operacionais
+
+- Na cadeira agora.
+- Próximos a chegar.
+- Clientes em espera.
+- Comandas aguardando pagamento.
+- Alertas de atraso.
+- Alertas de estoque.
+- Pendências financeiras.
+
+## 5. Agenda completa
+
+### 5.1. Visualizações
+
+- Diária, semanal e mensal.
+- Por profissional.
+- Por serviço.
+- Por unidade.
+- Por sala, cadeira ou equipamento.
+- Lista de compromissos.
+- Visão consolidada da equipe.
+
+### 5.2. Criação de agendamento
+
+Campos previstos:
+
+- Cliente.
+- Unidade.
+- Serviço ou combinação de serviços.
+- Profissional responsável por cada serviço.
+- Data e horário.
+- Duração estimada.
+- Intervalos de preparação e limpeza.
+- Recurso necessário.
+- Valor previsto.
+- Sinal exigido ou recebido.
+- Observações.
+- Origem do agendamento.
+- Política de cancelamento aplicável.
+
+### 5.3. Recursos operacionais
+
+- Arrastar e soltar para reagendar.
+- Ajustar duração.
+- Bloquear horários.
+- Cadastrar folgas e férias.
+- Configurar intervalos de almoço.
+- Criar recorrências.
+- Agendar encaixes autorizados.
+- Manter lista de espera.
+- Oferecer horário liberado para clientes em espera.
+- Registrar histórico de alterações.
+- Agendar vários serviços em sequência.
+- Agendar serviços com profissionais diferentes.
+- Considerar etapas de execução e pausa, como tempo de ação de coloração.
+- Permitir atendimento sem agendamento prévio.
+
+### 5.4. Estados do agendamento
+
+- Solicitado.
+- Aguardando sinal.
+- Confirmado.
+- Cliente chegou.
+- Em espera.
+- Em atendimento.
+- Concluído.
+- Cancelado.
+- Não compareceu.
+
+O estado do pagamento deverá ser separado do estado do atendimento: um serviço pode estar concluído e ainda não ter sido pago.
+
+### 5.5. Regras de disponibilidade
+
+- Impedir sobreposição não autorizada.
+- Validar profissional, serviço e recursos.
+- Respeitar jornada, intervalos e bloqueios.
+- Considerar duração e margem entre serviços.
+- Revalidar o horário no momento da confirmação.
+- Evitar que dois clientes reservem simultaneamente a mesma vaga.
+- Liberar reservas temporárias quando expirarem.
+- Exigir justificativa e permissão para exceções.
+
+## 6. Agendamento online e área do cliente
+
+Cada salão terá uma página própria com sua identidade visual.
+
+### Jornada de agendamento
+
+1. Escolher unidade.
+2. Escolher serviço.
+3. Escolher profissional ou “qualquer disponível”.
+4. Consultar horários.
+5. Identificar-se.
+6. Conferir preço, duração e políticas.
+7. Pagar sinal, quando necessário.
+8. Confirmar agendamento.
+9. Receber confirmação.
+
+### Funcionalidades do cliente
+
+- Cadastro e atualização de dados.
+- Consulta de próximos horários.
+- Confirmação de presença.
+- Cancelamento e reagendamento conforme as regras do salão.
+- Histórico de atendimentos.
+- Consulta de pacotes e sessões.
+- Consulta de créditos disponíveis.
+- Acesso a comprovantes e documentos disponibilizados.
+- Avaliação do atendimento.
+- Preferências de comunicação.
+- Solicitações relacionadas aos próprios dados.
+
+A página deverá apresentar endereço, contato, horários de funcionamento, serviços, equipe e políticas do estabelecimento.
+
+## 7. Recepção, fila e atendimento
+
+### Recepção
+
+- Localizar cliente rapidamente.
+- Registrar chegada.
+- Incluir cliente sem horário.
+- Exibir tempo de espera.
+- Notificar o profissional.
+- Identificar atrasos.
+- Transferir atendimento.
+- Abrir comanda.
+- Registrar observações de recepção.
+
+### Atendimento
+
+Cada atendimento terá:
+
+- Cliente e responsável.
+- Serviços previstos e executados.
+- Horários de início e término.
+- Profissionais participantes.
+- Observações técnicas.
+- Produtos consumidos.
+- Fotos e anexos autorizados.
+- Serviços adicionais.
+- Valor atualizado.
+- Situação da comanda.
+- Registro de conclusão.
+
+O sistema deverá permitir que um mesmo atendimento envolva vários profissionais, com serviços, tempos e comissões individualizados.
+
+### Ficha técnica
+
+Modelos personalizáveis por tipo de serviço:
+
+- Coloração: fórmula, tonalidade, proporções e tempo de ação.
+- Tratamento capilar: avaliação, protocolo e produtos.
+- Manicure: preferências e observações.
+- Estética: avaliação, restrições e acompanhamento.
+- Campo livre para procedimentos específicos.
+
+Informações de saúde, como alergias e determinadas restrições, exigem tratamento específico, pois dados referentes à saúde são classificados como dados pessoais sensíveis pela LGPD. O projeto deverá prever acesso restrito e validação jurídica das bases e condições de tratamento. [gov](https://www.gov.br/cbtu/pt-br/acesso-a-informacao/tratamento-de-dados-pessoais-encarregados)
+
+## 8. Clientes e CRM
+
+### Cadastro centralizado
+
+- Nome e nome social.
+- Telefone e WhatsApp.
+- E-mail.
+- Data de nascimento.
+- CPF, quando necessário.
+- Endereço, quando necessário.
+- Preferências.
+- Profissional preferido.
+- Origem do contato.
+- Tags e segmentações.
+- Preferências de comunicação.
+- Histórico de consentimentos, quando aplicável.
+- Observações com níveis de acesso.
+
+### Histórico integrado
+
+- Agendamentos.
+- Atendimentos.
+- Serviços realizados.
+- Produtos comprados.
+- Pagamentos e pendências.
+- Pacotes e créditos.
+- Cancelamentos e faltas.
+- Avaliações.
+- Comunicações registradas.
+- Fotos e fichas técnicas autorizadas.
+
+### Relacionamento
+
+- Identificação de clientes inativos.
+- Lembretes de retorno por serviço.
+- Aniversariantes.
+- Clientes frequentes.
+- Clientes com maior gasto acumulado.
+- Lista de interessados.
+- Recuperação de clientes.
+- Programa de indicação.
+- Fidelidade por pontos ou benefícios.
+
+### Funil comercial opcional
+
+- Novo contato.
+- Atendimento iniciado.
+- Orçamento enviado.
+- Aguardando decisão.
+- Agendamento realizado.
+- Venda concluída.
+- Contato perdido.
+
+O CRM interno deverá continuar funcionando mesmo sem integração com uma ferramenta externa.
+
+## 9. Serviços, preços e orçamento
+
+### Cadastro de serviços
+
+- Nome e descrição.
+- Categoria.
+- Duração.
+- Preço fixo, variável ou “a partir de”.
+- Profissionais habilitados.
+- Preços por profissional ou unidade.
+- Materiais previstos.
+- Custo estimado.
+- Comissão aplicável.
+- Disponibilidade online.
+- Necessidade de avaliação prévia.
+- Exigência de sinal.
+- Recursos necessários.
+- Formulários e orientações associados.
+
+### Orçamentos
+
+- Combinação de serviços e produtos.
+- Validade.
+- Descontos autorizados.
+- Envio ao cliente.
+- Registro de aceite.
+- Conversão em agendamento ou comanda.
+- Histórico de versões.
+
+Quando o preço depender de avaliação, a área pública deverá explicar que o valor final será confirmado antes da execução.
+
+## 10. Comandas e fechamento da conta
+
+A comanda será o registro central do consumo do cliente.
+
+### Itens permitidos
+
+- Serviços executados.
+- Produtos vendidos.
+- Adicionais.
+- Descontos.
+- Taxas configuradas e informadas.
+- Gorjeta opcional.
+- Resgate de sessões.
+- Uso de créditos.
+- Pagamentos antecipados.
+
+### Funcionalidades
+
+- Abrir comanda a partir do agendamento.
+- Abrir venda avulsa.
+- Adicionar itens durante o atendimento.
+- Identificar profissional por item.
+- Alterar preço com permissão.
+- Aplicar desconto com limite por perfil.
+- Dividir pagamento entre pessoas.
+- Aceitar várias formas de pagamento.
+- Registrar pagamento parcial.
+- Manter saldo pendente.
+- Cancelar itens com justificativa.
+- Emitir comprovante.
+- Consultar histórico de alterações.
+
+### Conferência do fechamento
+
+Antes de concluir:
+
+1. Confirmar os serviços realizados.
+2. Conferir produtos e quantidades.
+3. Aplicar descontos e créditos.
+4. Abater sinal já pago.
+5. Informar os meios de pagamento.
+6. Confirmar recebimentos ou registrar pendência.
+7. Gerar os registros financeiros.
+8. Atualizar estoque e comissões.
+9. Disponibilizar comprovante.
+10. Encaminhar emissão fiscal, quando configurada.
+
+Finalizar atendimento, fechar comanda e liquidar pagamento serão ações distintas, embora possam ocorrer na mesma tela.
+
+## 11. Financeiro, caixa e faturamento
+
+O módulo deverá separar vendas, recebimentos, recebíveis, despesas e resultado gerencial.
+
+### 11.1. Caixa diário
+
+- Abertura com saldo inicial.
+- Identificação de operador e unidade.
+- Entradas por forma de pagamento.
+- Suprimentos.
+- Sangrias.
+- Despesas pagas pelo caixa.
+- Transferências.
+- Fechamento por turno ou dia.
+- Valor esperado e valor informado.
+- Registro de divergências.
+- Aprovação por responsável.
+- Reabertura restrita e auditada.
+
+O saldo físico em dinheiro não deverá ser confundido com vendas em cartão ou Pix.
+
+### 11.2. Contas a receber
+
+- Comandas pendentes.
+- Parcelas.
+- Datas de vencimento.
+- Recebimentos parciais.
+- Cobranças.
+- Renegociação.
+- Inadimplência.
+- Histórico de liquidações.
+- Estornos.
+
+### 11.3. Contas a pagar
+
+- Aluguel.
+- Fornecedores.
+- Água, energia e internet.
+- Comissões.
+- Pró-labore e demais despesas cadastradas.
+- Tributos informados.
+- Assinaturas.
+- Parcelamentos.
+- Despesas recorrentes.
+- Centros de custo.
+- Anexos e comprovantes.
+- Aprovação de pagamentos.
+
+### 11.4. Formas de pagamento
+
+- Dinheiro.
+- Pix.
+- Cartão de débito.
+- Cartão de crédito.
+- Link de pagamento.
+- Transferência.
+- Crédito interno.
+- Vale-presente.
+- Combinação de meios.
+
+Pagamentos integrados deverão depender de um provedor configurado. Registro manual e confirmação automática deverão aparecer de forma distinta.
+
+### 11.5. Recebíveis e conciliação
+
+- Previsão de liquidação de cartões.
+- Taxas por operadora.
+- Parcelamento.
+- Antecipações.
+- Valor bruto, taxas e valor líquido.
+- Conciliação manual.
+- Conciliação automática quando houver integração.
+- Tratamento de pagamentos recusados, estornos e contestações.
+
+### 11.6. Relatórios financeiros
+
+- Vendas por período.
+- Recebimentos por período.
+- Contas vencidas e a vencer.
+- Fluxo de caixa realizado e projetado.
+- Receita por serviço, produto, profissional e unidade.
+- Despesas por categoria.
+- Descontos e cancelamentos.
+- Taxas de pagamento.
+- Margem estimada por serviço.
+- Demonstrativo gerencial de resultado.
+
+Os relatórios deverão indicar a data utilizada: venda, execução do serviço, vencimento ou recebimento. O demonstrativo gerencial não será apresentado como substituto da apuração contábil.
+
+### 11.7. Documentos fiscais
+
+Prever integração fiscal separada do comprovante de pagamento:
+
+- Emissão de documento de serviço.
+- Consulta de situação.
+- Armazenamento de arquivos retornados.
+- Envio ao cliente.
+- Tratamento de rejeições.
+- Cancelamento ou substituição conforme a integração.
+- Histórico das solicitações.
+
+O portal oficial disponibiliza emissão de NFS-e para serviços. A implementação deverá validar o enquadramento do estabelecimento, o município e a integração aplicável; não deverá prometer emissão universal sem essa verificação. A venda de produtos terá seu fluxo fiscal avaliado separadamente. [gov](https://www.gov.br/pt-br/servicos/emitir-nota-fiscal-de-servico-eletronica)
+
+## 12. Profissionais, equipe e comissões
+
+### Cadastro da equipe
+
+- Dados cadastrais.
+- Função.
+- Unidade.
+- Serviços executados.
+- Jornada e intervalos.
+- Folgas e férias.
+- Perfil de acesso.
+- Metas.
+- Regras de comissão.
+- Situação ativa ou inativa.
+
+### Modalidades de comissão
+
+- Percentual sobre serviço.
+- Valor fixo por serviço.
+- Percentual por produto vendido.
+- Regra por profissional.
+- Regra por categoria.
+- Divisão entre executor e auxiliar.
+- Faixas de desempenho.
+- Tratamento de descontos.
+- Tratamento de cancelamentos e estornos.
+
+### Apuração e pagamento
+
+- Comissão prevista.
+- Comissão elegível para pagamento.
+- Comissão aprovada.
+- Comissão paga.
+- Adiantamentos.
+- Ajustes justificados.
+- Extrato por período.
+- Comprovantes de repasse.
+- Contestação para análise.
+
+Cada salão deverá definir se a comissão é liberada pela execução ou pelo recebimento. Alterações futuras na regra não poderão recalcular silenciosamente períodos já fechados.
+
+### Área do profissional
+
+- Minha agenda.
+- Clientes do dia.
+- Início e conclusão de atendimento.
+- Fichas autorizadas.
+- Serviços e consumo.
+- Comissões.
+- Metas.
+- Solicitações de bloqueio.
+- Notificações.
+
+O cadastro de profissionais e os repasses não deverão ser apresentados como uma folha de pagamento completa.
+
+## 13. Produtos, estoque e compras
+
+### Cadastro de produtos
+
+- Nome.
+- Código interno e código de barras.
+- Categoria e marca.
+- Fornecedor.
+- Unidade de medida.
+- Custo.
+- Preço de venda.
+- Estoque mínimo.
+- Uso interno, revenda ou ambos.
+- Lote e validade, quando aplicável.
+- Comissão de venda.
+- Local de armazenamento.
+
+### Movimentações
+
+- Entrada por compra.
+- Venda.
+- Consumo no atendimento.
+- Perda.
+- Vencimento.
+- Devolução.
+- Ajuste de inventário.
+- Transferência entre unidades.
+
+### Consumo técnico
+
+- Vincular materiais aos serviços.
+- Informar consumo previsto.
+- Registrar consumo real.
+- Controlar fracionamento em gramas, mililitros ou unidades.
+- Diferenciar produto de revenda e material de uso interno.
+- Apurar custo estimado do atendimento.
+
+### Compras
+
+- Cadastro de fornecedores.
+- Solicitação de compra.
+- Pedido de compra.
+- Recebimento parcial ou integral.
+- Atualização de custos.
+- Geração de contas a pagar.
+- Devolução ao fornecedor.
+- Alertas de reposição.
+
+## 14. Pacotes, assinaturas e fidelidade
+
+### Pacotes
+
+- Venda de várias sessões.
+- Validade configurável.
+- Saldo por cliente.
+- Serviços elegíveis.
+- Histórico de uso.
+- Regras de transferência.
+- Cancelamento e reembolso.
+- Comissão por venda ou execução, conforme configuração.
+
+### Assinaturas
+
+- Plano recorrente.
+- Benefícios e limites.
+- Serviços incluídos.
+- Renovação.
+- Cobrança integrada, quando disponível.
+- Inadimplência.
+- Pausa e cancelamento.
+- Reajustes com histórico.
+
+### Fidelidade e créditos
+
+- Pontos.
+- Benefícios por frequência.
+- Cupons.
+- Indicações.
+- Vale-presente.
+- Créditos internos.
+- Regras de validade e utilização.
+
+A venda de um pacote, o recebimento do valor e o uso de cada sessão deverão ser eventos separados para evitar dupla contagem nos relatórios.
+
+## 15. Comunicação e automações
+
+### Comunicação operacional
+
+- Confirmação do agendamento.
+- Lembretes.
+- Solicitação de confirmação.
+- Aviso de reagendamento.
+- Cancelamento.
+- Horário liberado na lista de espera.
+- Orientações antes e depois do serviço.
+- Comprovante de pagamento.
+- Aviso de pendência.
+
+### Relacionamento
+
+- Aniversário.
+- Lembrete de retorno.
+- Reativação de cliente.
+- Pesquisa de satisfação.
+- Campanhas segmentadas.
+- Aviso de pacote próximo do vencimento.
+
+### Configurações
+
+- Canais disponíveis.
+- Modelos de mensagem.
+- Horários de envio.
+- Gatilhos.
+- Limites de frequência.
+- Preferências do cliente.
+- Histórico de entrega e falha.
+- Cancelamento de comunicações promocionais.
+
+Integrações com WhatsApp, e-mail, SMS e CRM externo deverão ser módulos separados, sujeitos às condições e custos de cada fornecedor.
+
+## 16. Relatórios e indicadores
+
+### Operação
+
+- Ocupação da agenda.
+- Horas disponíveis e utilizadas.
+- Duração prevista versus realizada.
+- Atrasos.
+- Faltas e cancelamentos.
+- Serviços mais realizados.
+- Agendamentos por canal.
+
+### Clientes
+
+- Novos clientes.
+- Clientes recorrentes.
+- Frequência de retorno.
+- Ticket médio.
+- Clientes inativos.
+- Gasto acumulado.
+- Conversão de orçamento em agendamento.
+- Satisfação.
+
+### Equipe
+
+- Produção por profissional.
+- Serviços realizados.
+- Venda de produtos.
+- Ocupação.
+- Comissões.
+- Metas.
+- Retorno de clientes.
+
+### Estoque e financeiro
+
+- Produtos mais vendidos.
+- Consumo por serviço.
+- Perdas e vencimentos.
+- Valor de estoque.
+- Vendas e recebimentos.
+- Despesas.
+- Margem estimada.
+- Resultado por unidade.
+
+Todos os indicadores deverão ter definição de cálculo, filtros de período e permissão de acesso.
+
+## 17. Gestão de vários salões e unidades
+
+A estrutura deverá separar:
+
+- Empresa assinante: cliente da plataforma.
+- Unidade: filial ou estabelecimento da mesma empresa.
+- Usuário: pessoa que acessa o sistema.
+- Perfil: conjunto de permissões.
+
+### Regras de isolamento
+
+- Dados de empresas diferentes não se misturam.
+- A autorização deve ser validada no servidor, não apenas na interface.
+- Arquivos e imagens também devem respeitar o isolamento.
+- Um usuário poderá acessar mais de uma empresa somente com vínculo autorizado.
+- A troca de empresa ou unidade deverá estar sempre identificada.
+- Relatórios consolidados dependerão de permissão.
+- Compartilhamento de cadastro de clientes entre unidades deverá ser configurável.
+- Estoque, caixa e agenda terão identificação de unidade.
+
+## 18. Perfis e permissões
+
+| Perfil | Acesso previsto |
+|---|---|
+| Proprietário | Gestão completa da empresa |
+| Gerente | Operação e relatórios autorizados |
+| Recepção | Agenda, clientes, recepção e comandas |
+| Caixa | Recebimentos e sessões de caixa |
+| Financeiro | Contas, conciliação e relatórios financeiros |
+| Profissional | Própria agenda e informações autorizadas |
+| Estoque | Produtos, compras e movimentações |
+| Marketing | Segmentações e campanhas autorizadas |
+| Cliente | Apenas os próprios dados e agendamentos |
+| Administrador da plataforma | Gestão do software e dos estabelecimentos |
+
+Permissões deverão ser específicas para ações sensíveis: dar desconto, cancelar venda, estornar pagamento, alterar comissão, exportar clientes, consultar fichas e reabrir caixa.
+
+Acesso de suporte aos dados de um salão deverá ser controlado, temporário e registrado.
+
+## 19. Painel administrativo da plataforma
+
+- Cadastrar salões.
+- Administrar planos.
+- Definir limites por plano.
+- Gerenciar assinaturas do software.
+- Acompanhar pagamentos da plataforma.
+- Administrar período de teste.
+- Suspender ou reativar ambientes conforme política contratual.
+- Consultar consumo de mensagens, armazenamento e integrações.
+- Gerenciar funcionalidades liberadas.
+- Acompanhar falhas.
+- Consultar trilhas de auditoria.
+- Administrar solicitações de suporte.
+- Exportar dados e encerrar contas conforme política definida.
+
+A cobrança do software deverá ser independente do faturamento operacional de cada salão.
+
+## 20. Segurança, privacidade e confiabilidade
+
+Requisitos previstos:
+
+- Conexão segura.
+- Senhas armazenadas com proteção adequada.
+- Recuperação de acesso.
+- Autenticação em dois fatores para perfis administrativos.
+- Controle de sessões.
+- Permissões por ação.
+- Auditoria de alterações.
+- Proteção de anexos.
+- Backups e testes de restauração.
+- Política de retenção.
+- Exportação de dados.
+- Fluxo para solicitações de titulares.
+- Proteção contra acessos automatizados abusivos.
+- Monitoramento de erros.
+- Plano de recuperação.
+
+Como o sistema poderá guardar fotos, dados de clientes e fichas com informações de saúde, a privacidade deverá ser parte da especificação inicial, não uma etapa posterior. Dados de saúde pertencem à categoria de dados sensíveis na LGPD. [gov](https://www.gov.br/cbtu/pt-br/acesso-a-informacao/tratamento-de-dados-pessoais-encarregados)
+
+## 21. Regras essenciais de consistência
+
+Estas regras deverão fazer parte dos testes de aceite:
+
+1. O mesmo horário não pode ser confirmado duas vezes indevidamente.
+2. Um sinal pago deve ser abatido apenas uma vez.
+3. Uma notificação repetida de pagamento não pode gerar duas receitas.
+4. Concluir atendimento não deve marcar automaticamente uma dívida como paga.
+5. Vender um pacote não pode gerar nova venda a cada uso da sessão.
+6. Um item cancelado deve gerar os ajustes de estoque, comissão e financeiro correspondentes.
+7. Alterar preço ou comissão hoje não pode mudar silenciosamente registros históricos.
+8. Estorno parcial deve afetar somente a parcela e os itens correspondentes.
+9. Caixa fechado não pode ser alterado sem autorização e registro.
+10. Exclusões não podem apagar a rastreabilidade de operações financeiras.
+11. Uma falha em integração deve ficar visível e permitir reprocessamento seguro.
+12. Nenhuma consulta ou exportação pode acessar dados de outro salão sem autorização.
+
+## 22. Estrutura de dados prevista
+
+### Organização
+
+- Empresas.
+- Unidades.
+- Usuários.
+- Vínculos e permissões.
+- Temas.
+- Configurações.
+- Planos da plataforma.
+- Assinaturas da plataforma.
+
+### Clientes e operação
+
+- Clientes.
+- Preferências de comunicação.
+- Consentimentos e registros associados.
+- Profissionais.
+- Jornadas.
+- Serviços.
+- Recursos.
+- Agendamentos.
+- Etapas do agendamento.
+- Lista de espera.
+- Atendimentos.
+- Fichas técnicas.
+- Anexos.
+
+### Comercial e financeiro
+
+- Orçamentos.
+- Comandas.
+- Itens.
+- Descontos.
+- Pagamentos.
+- Alocações de pagamento.
+- Estornos.
+- Recebíveis.
+- Contas a pagar.
+- Sessões de caixa.
+- Movimentações.
+- Comissões.
+- Repasses.
+- Documentos fiscais.
+- Pacotes.
+- Sessões utilizadas.
+- Créditos.
+
+### Estoque e comunicação
+
+- Produtos.
+- Fornecedores.
+- Compras.
+- Lotes.
+- Movimentações de estoque.
+- Campanhas.
+- Mensagens.
+- Integrações.
+- Eventos recebidos.
+- Logs de auditoria.
+
+## 23. Integrações previstas
+
+| Integração | Finalidade |
+|---|---|
+| WhatsApp | Confirmações, lembretes e relacionamento |
+| E-mail e SMS | Comunicação alternativa |
+| Provedor de pagamentos | Pix, cartão, links e recorrência |
+| Provedor fiscal | Emissão e consulta de documentos |
+| Calendários externos | Sincronização opcional |
+| CRM externo | Leads e funil comercial |
+| Contabilidade | Exportação de informações |
+| Importação CSV | Migração de clientes, produtos e serviços |
+| Webhooks e API | Integração com outros sistemas |
+
+Cada integração deverá ter escopo próprio, credenciais isoladas, acompanhamento de falhas e regras de reprocessamento.
+
+## 24. Divisão das entregas
+
+### Etapa 1 — Operação ponta a ponta
+
+Primeira versão utilizável:
+
+- Cadastro do salão.
+- Logo e cores.
+- Usuários e permissões.
+- Clientes.
+- Profissionais.
+- Serviços.
+- Agenda.
+- Página de agendamento.
+- Recepção.
+- Atendimento.
+- Comandas.
+- Recebimentos.
+- Caixa.
+- Comissões básicas.
+- Estoque básico.
+- Contas a pagar e receber.
+- Relatórios essenciais.
+- Auditoria e backups.
+
+Essa entrega já deverá permitir completar o ciclo do agendamento ao fechamento do caixa, ainda que parte das confirmações financeiras seja manual.
+
+### Etapa 2 — Automação e controle avançado
+
+- Mensagens automáticas.
+- Pagamentos integrados.
+- Conciliação.
+- Integração fiscal.
+- Compras.
+- Consumo técnico.
+- Pacotes.
+- Fidelidade.
+- Área completa do profissional.
+- CRM e campanhas.
+- Relatórios ampliados.
+
+### Etapa 3 — Escala da plataforma
+
+- Gestão avançada de múltiplas unidades.
+- Assinaturas recorrentes.
+- Domínio personalizado.
+- Integrações externas ampliadas.
+- API pública.
+- Consolidação de redes.
+- Aplicativos nativos, se necessários.
+- Recursos avançados de análise.
+
+## 25. Critérios de aceite do projeto
+
+O sistema estará pronto para operar quando:
+
+- Um salão conseguir configurar sua marca sem alterar outros ambientes.
+- A recepção conseguir cadastrar e agendar um cliente.
+- O cliente conseguir reservar um horário disponível pela página pública.
+- O profissional conseguir iniciar e concluir um atendimento.
+- A comanda reunir corretamente serviços, produtos e créditos.
+- O caixa conseguir receber por diferentes meios.
+- O financeiro conseguir distinguir venda, recebimento e pendência.
+- As comissões respeitarem a regra vigente na operação.
+- O estoque refletir vendas e consumos registrados.
+- O fechamento apresentar valores esperados e divergências.
+- Cancelamentos e estornos manterem rastreabilidade.
+- Os relatórios permitirem conferir os valores até a operação de origem.
+- As permissões e o isolamento entre salões forem testados.
+- A restauração de backup for validada.
+- A interface funcionar em desktop, tablet e celular.
+
+## 26. Entregáveis para construção
+
+O projeto deverá produzir:
+
+1. Documento de requisitos e regras de negócio.
+2. Mapa de telas e navegação.
+3. Design system baseado na referência.
+4. Protótipos de desktop e celular.
+5. Modelo de dados.
+6. Matriz de permissões.
+7. Especificação de integrações.
+8. Backlog por etapa.
+9. Plano de testes.
+10. Procedimentos de implantação, migração e backup.
+11. Manual de uso por perfil.
+
+O eixo do produto será a ligação entre agenda, atendimento, comanda, pagamento, estoque e comissão. É essa continuidade que permitirá fechar o dia e explicar cada valor do faturamento, em vez de oferecer apenas uma agenda com telas financeiras separadas.

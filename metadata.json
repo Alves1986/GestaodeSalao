@@ -1,0 +1,6 @@
+{
+  "name": "Atelier Gestão — Plataforma SaaS para Salões de Beleza",
+  "description": "Plataforma SaaS multi-tenant para gestão completa de salões de beleza: agenda inteligente, recepção, comandas, comissões, estoque fracionado, financeiro, CRM e agendamento online white-label.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
