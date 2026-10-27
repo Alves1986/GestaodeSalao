@@ -1,5 +1,6 @@
 import {
   Appointment,
+  AppointmentStatus,
   CashSession,
   ClientPackage,
   Comanda,
@@ -515,5 +516,276 @@ export function calculateDailyRevenueGoalProgress(params: {
     statusLabel,
   };
 }
+
+export type AgendaColorGroup =
+  | 'em_atendimento'
+  | 'recepcao_espera'
+  | 'confirmado'
+  | 'pendente_sinal'
+  | 'concluido'
+  | 'cancelado_falta';
+
+export interface AppointmentStatusVisual {
+  group: AgendaColorGroup;
+  label: string;
+  operationalMeaning: string;
+  accentHex: string;
+  cardBgClass: string;
+  cardBorderClass: string;
+  leftStripeClass: string;
+  headerBgClass: string;
+  textStrongClass: string;
+  textMutedClass: string;
+  dotClass: string;
+  rowHoverClass: string;
+}
+
+/**
+ * Mapeamento cromático semântico da Agenda e Recepção para leitura visual imediata do salão.
+ */
+export function getAppointmentStatusVisual(status: AppointmentStatus): AppointmentStatusVisual {
+  switch (status) {
+    case 'em_atendimento':
+      return {
+        group: 'em_atendimento',
+        label: 'Na Cadeira Agora',
+        operationalMeaning: 'Atendimento em execução ativa',
+        accentHex: '#059669', // Emerald 600
+        cardBgClass: 'bg-emerald-50/85',
+        cardBorderClass: 'border-emerald-300/90',
+        leftStripeClass: 'border-l-4 border-l-emerald-600',
+        headerBgClass: 'bg-emerald-100/80',
+        textStrongClass: 'text-emerald-950',
+        textMutedClass: 'text-emerald-800',
+        dotClass: 'bg-emerald-600',
+        rowHoverClass: 'hover:bg-emerald-50/60',
+      };
+    case 'chegou':
+    case 'em_espera':
+      return {
+        group: 'recepcao_espera',
+        label: status === 'chegou' ? 'Cliente na Recepção' : 'Em Sala de Espera',
+        operationalMeaning: 'Aguardando chamada do profissional',
+        accentHex: '#D97706', // Amber 600
+        cardBgClass: 'bg-amber-50/90',
+        cardBorderClass: 'border-amber-300/90',
+        leftStripeClass: 'border-l-4 border-l-amber-500',
+        headerBgClass: 'bg-amber-100/80',
+        textStrongClass: 'text-amber-950',
+        textMutedClass: 'text-amber-800',
+        dotClass: 'bg-amber-500',
+        rowHoverClass: 'hover:bg-amber-50/60',
+      };
+    case 'confirmado':
+      return {
+        group: 'confirmado',
+        label: 'Horário Confirmado',
+        operationalMeaning: 'Reserva garantida para chegada',
+        accentHex: '#0284C7', // Sky 600
+        cardBgClass: 'bg-sky-50/80',
+        cardBorderClass: 'border-sky-200/90',
+        leftStripeClass: 'border-l-4 border-l-sky-600',
+        headerBgClass: 'bg-sky-100/75',
+        textStrongClass: 'text-sky-950',
+        textMutedClass: 'text-sky-800',
+        dotClass: 'bg-sky-600',
+        rowHoverClass: 'hover:bg-sky-50/60',
+      };
+    case 'aguardando_sinal':
+    case 'solicitado':
+      return {
+        group: 'pendente_sinal',
+        label: status === 'aguardando_sinal' ? 'Aguardando Sinal' : 'Solicitado Online',
+        operationalMeaning: 'Pendente de sinal ou confirmação',
+        accentHex: '#7C3AED', // Violet 600
+        cardBgClass: 'bg-violet-50/80',
+        cardBorderClass: 'border-violet-200/90',
+        leftStripeClass: 'border-l-4 border-l-violet-600',
+        headerBgClass: 'bg-violet-100/75',
+        textStrongClass: 'text-violet-950',
+        textMutedClass: 'text-violet-800',
+        dotClass: 'bg-violet-600',
+        rowHoverClass: 'hover:bg-violet-50/60',
+      };
+    case 'concluido':
+      return {
+        group: 'concluido',
+        label: 'Atendimento Concluído',
+        operationalMeaning: 'Serviço finalizado no dia',
+        accentHex: '#0F766E', // Teal 700
+        cardBgClass: 'bg-teal-50/55',
+        cardBorderClass: 'border-teal-200/80',
+        leftStripeClass: 'border-l-4 border-l-teal-700',
+        headerBgClass: 'bg-teal-100/60',
+        textStrongClass: 'text-stone-900',
+        textMutedClass: 'text-teal-800',
+        dotClass: 'bg-teal-700',
+        rowHoverClass: 'hover:bg-teal-50/40',
+      };
+    case 'cancelado':
+    case 'nao_compareceu':
+    default:
+      return {
+        group: 'cancelado_falta',
+        label: status === 'nao_compareceu' ? 'Não Compareceu' : 'Horário Cancelado',
+        operationalMeaning: 'Vaga liberada / encaixe disponível',
+        accentHex: '#E11D48', // Rose 600
+        cardBgClass: 'bg-rose-50/75',
+        cardBorderClass: 'border-rose-200/90',
+        leftStripeClass: 'border-l-4 border-l-rose-500',
+        headerBgClass: 'bg-rose-100/70',
+        textStrongClass: 'text-rose-950',
+        textMutedClass: 'text-rose-800',
+        dotClass: 'bg-rose-500',
+        rowHoverClass: 'hover:bg-rose-50/50',
+      };
+  }
+}
+
+export interface AgendaVisualSegment {
+  group: AgendaColorGroup;
+  label: string;
+  shortDesc: string;
+  count: number;
+  percentage: number;
+  accentHex: string;
+  dotClass: string;
+  bgActiveClass: string;
+  borderActiveClass: string;
+  textClass: string;
+}
+
+/**
+ * Resume o panorama visual do salão a partir dos agendamentos filtrados da agenda,
+ * gerando a distribuição percentual por cor e a taxa de ocupação da equipe.
+ */
+export function summarizeSalonAgendaVisualStatus(
+  appointments: Appointment[],
+  totalProfessionals: number
+): {
+  totalAppointments: number;
+  inServiceCount: number;
+  waitingReceptionCount: number;
+  confirmedCount: number;
+  pendingDepositCount: number;
+  completedCount: number;
+  cancelledCount: number;
+  busyProfessionalsCount: number;
+  freeProfessionalsCount: number;
+  teamOccupancyPct: number;
+  segments: AgendaVisualSegment[];
+} {
+  const inService = appointments.filter((a) => a.status === 'em_atendimento');
+  const waitingReception = appointments.filter(
+    (a) => a.status === 'chegou' || a.status === 'em_espera'
+  );
+  const confirmed = appointments.filter((a) => a.status === 'confirmado');
+  const pendingDeposit = appointments.filter(
+    (a) => a.status === 'aguardando_sinal' || a.status === 'solicitado'
+  );
+  const completed = appointments.filter((a) => a.status === 'concluido');
+  const cancelled = appointments.filter(
+    (a) => a.status === 'cancelado' || a.status === 'nao_compareceu'
+  );
+
+  const total = appointments.length;
+  const toPct = (c: number) => (total > 0 ? Number(((c / total) * 100).toFixed(1)) : 0);
+
+  const busyProfIds = new Set(inService.map((a) => a.professionalId));
+  const safeTotalProfs = Math.max(1, totalProfessionals);
+  const busyCount = busyProfIds.size;
+  const freeCount = Math.max(0, totalProfessionals - busyCount);
+  const teamOccupancyPct = Number(((busyCount / safeTotalProfs) * 100).toFixed(0));
+
+  const segments: AgendaVisualSegment[] = [
+    {
+      group: 'em_atendimento',
+      label: 'Na Cadeira',
+      shortDesc: 'Em execução',
+      count: inService.length,
+      percentage: toPct(inService.length),
+      accentHex: '#059669',
+      dotClass: 'bg-emerald-600',
+      bgActiveClass: 'bg-emerald-50',
+      borderActiveClass: 'border-emerald-500',
+      textClass: 'text-emerald-900',
+    },
+    {
+      group: 'recepcao_espera',
+      label: 'Na Recepção',
+      shortDesc: 'Cliente chegou',
+      count: waitingReception.length,
+      percentage: toPct(waitingReception.length),
+      accentHex: '#D97706',
+      dotClass: 'bg-amber-500',
+      bgActiveClass: 'bg-amber-50',
+      borderActiveClass: 'border-amber-500',
+      textClass: 'text-amber-900',
+    },
+    {
+      group: 'confirmado',
+      label: 'Confirmados',
+      shortDesc: 'Vão chegar',
+      count: confirmed.length,
+      percentage: toPct(confirmed.length),
+      accentHex: '#0284C7',
+      dotClass: 'bg-sky-600',
+      bgActiveClass: 'bg-sky-50',
+      borderActiveClass: 'border-sky-500',
+      textClass: 'text-sky-900',
+    },
+    {
+      group: 'pendente_sinal',
+      label: 'Aguard. Sinal',
+      shortDesc: 'Pendente Pix',
+      count: pendingDeposit.length,
+      percentage: toPct(pendingDeposit.length),
+      accentHex: '#7C3AED',
+      dotClass: 'bg-violet-600',
+      bgActiveClass: 'bg-violet-50',
+      borderActiveClass: 'border-violet-500',
+      textClass: 'text-violet-900',
+    },
+    {
+      group: 'concluido',
+      label: 'Concluídos',
+      shortDesc: 'Finalizados',
+      count: completed.length,
+      percentage: toPct(completed.length),
+      accentHex: '#0F766E',
+      dotClass: 'bg-teal-700',
+      bgActiveClass: 'bg-teal-50',
+      borderActiveClass: 'border-teal-600',
+      textClass: 'text-teal-900',
+    },
+    {
+      group: 'cancelado_falta',
+      label: 'Cancelados',
+      shortDesc: 'Horário livre',
+      count: cancelled.length,
+      percentage: toPct(cancelled.length),
+      accentHex: '#E11D48',
+      dotClass: 'bg-rose-500',
+      bgActiveClass: 'bg-rose-50',
+      borderActiveClass: 'border-rose-500',
+      textClass: 'text-rose-900',
+    },
+  ];
+
+  return {
+    totalAppointments: total,
+    inServiceCount: inService.length,
+    waitingReceptionCount: waitingReception.length,
+    confirmedCount: confirmed.length,
+    pendingDepositCount: pendingDeposit.length,
+    completedCount: completed.length,
+    cancelledCount: cancelled.length,
+    busyProfessionalsCount: busyCount,
+    freeProfessionalsCount: freeCount,
+    teamOccupancyPct,
+    segments,
+  };
+}
+
 
 

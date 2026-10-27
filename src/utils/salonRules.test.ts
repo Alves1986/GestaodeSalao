@@ -11,6 +11,8 @@ import {
   canViewFinancialIndicators,
   buildWeeklyRevenueVsExpenses,
   calculateDailyRevenueGoalProgress,
+  getAppointmentStatusVisual,
+  summarizeSalonAgendaVisualStatus,
 } from './salonRules';
 import { Appointment, CashSession, ClientPackage, Comanda, FinancialEntry } from '../types/salon';
 
@@ -337,5 +339,85 @@ test('Meta de Faturamento Diário: calcula realizado vs meta, saldo faltante, su
   assert.equal(exceeded.remainingToGoal, 0);
   assert.equal(exceeded.statusLabel, 'meta_atingida');
 });
+
+test('Cores da Agenda: diferencia cada estágio de atendimento por cor e calcula panorama visual do salão', () => {
+  const inChair = getAppointmentStatusVisual('em_atendimento');
+  const waiting = getAppointmentStatusVisual('chegou');
+  const confirmed = getAppointmentStatusVisual('confirmado');
+  const pendingSignal = getAppointmentStatusVisual('aguardando_sinal');
+  const completed = getAppointmentStatusVisual('concluido');
+  const cancelled = getAppointmentStatusVisual('cancelado');
+
+  // Todas as 6 categorias possuem cores de destaque e grupos distintos
+  const hexes = new Set([
+    inChair.accentHex,
+    waiting.accentHex,
+    confirmed.accentHex,
+    pendingSignal.accentHex,
+    completed.accentHex,
+    cancelled.accentHex,
+  ]);
+  assert.equal(hexes.size, 6);
+
+  const sampleAppts: Appointment[] = [
+    {
+      id: 'a1',
+      salonId: 's1',
+      unitId: 'u1',
+      clientId: 'c1',
+      clientName: 'Cliente 1',
+      clientPhone: '11',
+      serviceId: 'srv1',
+      serviceName: 'Mechas',
+      professionalId: 'p1',
+      professionalName: 'Prof 1',
+      chairOrRoom: 'Cadeira 01',
+      date: '2026-10-26',
+      startTime: '14:00',
+      endTime: '16:00',
+      durationMinutes: 120,
+      status: 'em_atendimento',
+      paymentStatus: 'pendente',
+      estimatedPrice: 500,
+      depositPaid: 100,
+      depositDeductedInComanda: true,
+      origin: 'Online',
+      notes: '',
+    },
+    {
+      id: 'a2',
+      salonId: 's1',
+      unitId: 'u1',
+      clientId: 'c2',
+      clientName: 'Cliente 2',
+      clientPhone: '11',
+      serviceId: 'srv2',
+      serviceName: 'Corte',
+      professionalId: 'p2',
+      professionalName: 'Prof 2',
+      chairOrRoom: 'Cadeira 02',
+      date: '2026-10-26',
+      startTime: '15:00',
+      endTime: '16:00',
+      durationMinutes: 60,
+      status: 'chegou',
+      paymentStatus: 'pendente',
+      estimatedPrice: 250,
+      depositPaid: 0,
+      depositDeductedInComanda: false,
+      origin: 'Recepção',
+      notes: '',
+    },
+  ];
+
+  const summary = summarizeSalonAgendaVisualStatus(sampleAppts, 4);
+  assert.equal(summary.totalAppointments, 2);
+  assert.equal(summary.inServiceCount, 1);
+  assert.equal(summary.waitingReceptionCount, 1);
+  assert.equal(summary.busyProfessionalsCount, 1);
+  assert.equal(summary.freeProfessionalsCount, 3);
+  assert.equal(summary.teamOccupancyPct, 25);
+});
+
 
 

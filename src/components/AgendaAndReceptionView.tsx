@@ -20,7 +20,12 @@ import {
   SalonService,
   SalonTenant,
 } from '../types/salon';
-import { hasScheduleConflict } from '../utils/salonRules';
+import {
+  AgendaColorGroup,
+  getAppointmentStatusVisual,
+  hasScheduleConflict,
+  summarizeSalonAgendaVisualStatus,
+} from '../utils/salonRules';
 
 interface AgendaAndReceptionViewProps {
   mode: 'agenda' | 'recepcao';
@@ -52,6 +57,7 @@ export const AgendaAndReceptionView: React.FC<AgendaAndReceptionViewProps> = ({
   const [viewMode, setViewMode] = useState<'colunas_profissional' | 'lista' | 'recursos'>('colunas_profissional');
   const [selectedDate, setSelectedDate] = useState('2026-10-26');
   const [filterProfId, setFilterProfId] = useState('todos');
+  const [filterColorGroup, setFilterColorGroup] = useState<'todos' | AgendaColorGroup>('todos');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Form para novo agendamento ou walk-in (Seção 5.2 e 7)
@@ -73,7 +79,8 @@ export const AgendaAndReceptionView: React.FC<AgendaAndReceptionViewProps> = ({
   const unitServices = services.filter((s) => s.salonId === salon.id);
   const unitClients = clients.filter((c) => c.salonId === salon.id);
 
-  const filteredAppointments = appointments
+  // Compromissos da data/profissional/busca antes do filtro por cor (para alimentar o termômetro visual completo)
+  const baseDateAppointments = appointments
     .filter((a) => a.salonId === salon.id)
     .filter((a) => selectedUnitId === 'todas' || a.unitId === selectedUnitId)
     .filter((a) => a.date === selectedDate)
@@ -88,6 +95,16 @@ export const AgendaAndReceptionView: React.FC<AgendaAndReceptionViewProps> = ({
       );
     })
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  const visualSummary = summarizeSalonAgendaVisualStatus(
+    baseDateAppointments,
+    unitProfessionals.length
+  );
+
+  const filteredAppointments = baseDateAppointments.filter((a) => {
+    if (filterColorGroup === 'todos') return true;
+    return getAppointmentStatusVisual(a.status).group === filterColorGroup;
+  });
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -413,6 +430,124 @@ export const AgendaAndReceptionView: React.FC<AgendaAndReceptionViewProps> = ({
         </form>
       )}
 
+      {/* Termômetro Visual do Salão & Legenda Interativa de Cores */}
+      <section
+        aria-label="Mapa Visual de Cores do Salão"
+        className="bg-white rounded-2xl p-5 border border-stone-200/80 space-y-4"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-stone-900">
+                Termômetro Visual do Salão · Mapa de Cores por Estágio
+              </h2>
+              <span className="text-xs text-stone-500 font-mono-tabular">
+                ({visualSummary.busyProfessionalsCount}/{unitProfessionals.length} cadeiras em atendimento · {visualSummary.teamOccupancyPct}% ocupação ativa)
+              </span>
+            </div>
+            <p className="text-xs text-stone-500 mt-0.5">
+              Identifique imediatamente quem está na cadeira (verde), aguardando na recepção (âmbar), confirmado (azul), pendente de sinal (violeta) ou concluído (teal). Clique em uma cor para filtrar.
+            </p>
+          </div>
+
+          {filterColorGroup !== 'todos' && (
+            <button
+              type="button"
+              onClick={() => setFilterColorGroup('todos')}
+              className="text-xs font-medium text-stone-700 hover:text-stone-900 underline cursor-pointer self-start sm:self-auto whitespace-nowrap"
+            >
+              Limpar filtro de cor (Mostrar todos os {visualSummary.totalAppointments})
+            </button>
+          )}
+        </div>
+
+        {/* Barra proporcional multicolorida do dia */}
+        <div
+          aria-label="Proporção de status da agenda por cor"
+          className="h-3 w-full rounded-lg bg-stone-100 overflow-hidden flex border border-stone-200/70"
+        >
+          {visualSummary.segments.map((seg) =>
+            seg.percentage > 0 ? (
+              <div
+                key={seg.group}
+                style={{
+                  width: `${seg.percentage}%`,
+                  backgroundColor: seg.accentHex,
+                }}
+                title={`${seg.label}: ${seg.count} (${seg.percentage}%)`}
+                className="h-full transition-all duration-300 first:rounded-l-md last:rounded-r-md"
+              />
+            ) : null
+          )}
+        </div>
+
+        {/* Cartões interativos da legenda cromática */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
+          <button
+            type="button"
+            onClick={() => setFilterColorGroup('todos')}
+            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+              filterColorGroup === 'todos'
+                ? 'bg-stone-900 text-white border-stone-900 shadow-xs'
+                : 'bg-stone-50/70 text-stone-800 border-stone-200/80 hover:border-stone-300'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-1.5">
+              <span className="text-xs font-semibold truncate">Visão Geral</span>
+              <span className="text-sm font-mono-tabular font-semibold">
+                {visualSummary.totalAppointments}
+              </span>
+            </div>
+            <span
+              className={`text-[11px] mt-1 truncate ${
+                filterColorGroup === 'todos' ? 'text-stone-300' : 'text-stone-500'
+              }`}
+            >
+              Todas as cores
+            </span>
+          </button>
+
+          {visualSummary.segments.map((seg) => {
+            const isSelected = filterColorGroup === seg.group;
+            return (
+              <button
+                key={seg.group}
+                type="button"
+                onClick={() =>
+                  setFilterColorGroup(isSelected ? 'todos' : seg.group)
+                }
+                style={{
+                  borderLeftWidth: '4px',
+                  borderLeftColor: seg.accentHex,
+                }}
+                className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  isSelected
+                    ? `${seg.bgActiveClass} ${seg.borderActiveClass} shadow-xs`
+                    : 'bg-white border-stone-200/90 hover:bg-stone-50/80'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <span
+                      className={`w-2.5 h-2.5 rounded-sm shrink-0 ${seg.dotClass}`}
+                    />
+                    <span className={`text-xs font-semibold truncate ${seg.textClass}`}>
+                      {seg.label}
+                    </span>
+                  </span>
+                  <span className={`text-sm font-mono-tabular font-semibold ${seg.textClass}`}>
+                    {seg.count}
+                  </span>
+                </div>
+                <span className="text-[11px] text-stone-500 mt-1 truncate">
+                  {seg.shortDesc} · {seg.percentage}%
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       {/* Barra de filtros operacionais */}
       <div className="bg-white rounded-2xl p-4 border border-stone-200/80 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -467,7 +602,7 @@ export const AgendaAndReceptionView: React.FC<AgendaAndReceptionViewProps> = ({
                 {mode === 'recepcao' ? 'Fila de Recepção, Check-in e Transferência' : 'Lista Cronológica de Compromissos'}
               </h2>
               <p className="text-xs text-stone-500">
-                Separação clara entre o estado do atendimento e o estado financeiro do pagamento
+                Cores distintas por estágio operacional e separação clara entre atendimento e pagamento
               </p>
             </div>
           </div>
@@ -480,187 +615,313 @@ export const AgendaAndReceptionView: React.FC<AgendaAndReceptionViewProps> = ({
                   <th className="py-3 px-4 font-medium">Cliente</th>
                   <th className="py-3 px-4 font-medium">Serviço & Recurso</th>
                   <th className="py-3 px-4 font-medium">Profissional (Transferir)</th>
-                  <th className="py-3 px-4 font-medium">Estado Atendimento</th>
+                  <th className="py-3 px-4 font-medium">Cor & Estado Atendimento</th>
                   <th className="py-3 px-4 font-medium text-right">Valor & Sinal</th>
                   <th className="py-3 px-4 font-medium text-right">Ações Operacionais</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-200/70 text-xs">
-                {filteredAppointments.map((appt) => (
-                  <tr key={appt.id} className="hover:bg-stone-50/70 transition-colors">
-                    <td className="py-3.5 px-4 font-mono-tabular whitespace-nowrap">
-                      <div className="font-semibold text-stone-900">
-                        {appt.startTime} – {appt.endTime}
-                      </div>
-                      <div className="text-stone-500">
-                        {appt.durationMinutes} min · {appt.origin}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="font-semibold text-stone-900">{appt.clientName}</div>
-                      <div className="text-stone-500 font-mono-tabular">{appt.clientPhone}</div>
-                      {appt.checkInTime && (
-                        <div className="text-emerald-700 font-mono-tabular">
-                          Chegou às {appt.checkInTime}
+                {filteredAppointments.map((appt) => {
+                  const visual = getAppointmentStatusVisual(appt.status);
+                  return (
+                    <tr
+                      key={appt.id}
+                      style={{
+                        borderLeftWidth: '5px',
+                        borderLeftColor: visual.accentHex,
+                      }}
+                      className={`${visual.cardBgClass} ${visual.rowHoverClass} transition-colors`}
+                    >
+                      <td className="py-3.5 px-4 font-mono-tabular whitespace-nowrap">
+                        <div className={`font-semibold ${visual.textStrongClass}`}>
+                          {appt.startTime} – {appt.endTime}
                         </div>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="font-medium text-stone-900">{appt.serviceName}</div>
-                      <div className="text-stone-500">
-                        {appt.chairOrRoom} {appt.notes ? `· ${appt.notes}` : ''}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <select
-                        aria-label={`Transferir profissional de ${appt.clientName}`}
-                        value={appt.professionalId}
-                        onChange={(e) => onTransferProfessional(appt.id, e.target.value)}
-                        className="border border-stone-200 rounded-lg px-2 py-1 text-xs text-stone-800 bg-white"
-                      >
-                        {unitProfessionals.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <div className="font-medium text-stone-900">{statusText[appt.status]}</div>
-                      <div className="text-stone-500">
-                        Pgto: {appt.paymentStatus.toUpperCase()}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-mono-tabular whitespace-nowrap">
-                      <div className="font-semibold text-stone-900">
-                        {formatBRL(appt.estimatedPrice)}
-                      </div>
-                      <div className="text-stone-500">
-                        {appt.depositPaid > 0 ? `Sinal: ${formatBRL(appt.depositPaid)}` : 'Sem sinal'}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1.5">
-                        {(appt.status === 'confirmado' || appt.status === 'aguardando_sinal' || appt.status === 'solicitado') && (
-                          <button
-                            type="button"
-                            onClick={() => onUpdateAppointmentStatus(appt.id, 'chegou')}
-                            className="px-2.5 py-1.5 text-xs font-medium text-stone-900 bg-stone-100 hover:bg-stone-200 rounded-lg cursor-pointer"
-                          >
-                            Fazer Check-in
-                          </button>
+                        <div className="text-stone-600">
+                          {appt.durationMinutes} min · {appt.origin}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-semibold text-stone-900">{appt.clientName}</div>
+                        <div className="text-stone-600 font-mono-tabular">{appt.clientPhone}</div>
+                        {appt.checkInTime && (
+                          <div className="text-emerald-800 font-mono-tabular font-medium">
+                            Chegou às {appt.checkInTime}
+                          </div>
                         )}
-                        {(appt.status === 'chegou' || appt.status === 'em_espera' || appt.status === 'confirmado') && (
-                          <button
-                            type="button"
-                            onClick={() => onStartAttendanceAndOpenComanda(appt.id)}
-                            style={{ backgroundColor: salon.theme.primaryColor }}
-                            className="px-2.5 py-1.5 text-xs font-medium text-white rounded-lg hover:opacity-95 cursor-pointer"
-                          >
-                            Iniciar & Abrir Comanda
-                          </button>
-                        )}
-                        {appt.status !== 'cancelado' && appt.status !== 'concluido' && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onUpdateAppointmentStatus(appt.id, 'cancelado');
-                              setWaitlistNotified(
-                                `Horário das ${appt.startTime} (${appt.professionalName}) liberado! Oferta automática enviada para a Lista de Espera.`
-                              );
-                            }}
-                            className="px-2 py-1.5 text-xs text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer"
-                          >
-                            Cancelar
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-medium text-stone-900">{appt.serviceName}</div>
+                        <div className="text-stone-600">
+                          {appt.chairOrRoom} {appt.notes ? `· ${appt.notes}` : ''}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <select
+                          aria-label={`Transferir profissional de ${appt.clientName}`}
+                          value={appt.professionalId}
+                          onChange={(e) => onTransferProfessional(appt.id, e.target.value)}
+                          className="border border-stone-300 rounded-lg px-2 py-1 text-xs text-stone-900 bg-white"
+                        >
+                          {unitProfessionals.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`w-2.5 h-2.5 rounded-sm shrink-0 ${visual.dotClass}`} />
+                          <span className={`font-semibold ${visual.textStrongClass}`}>
+                            {statusText[appt.status]}
+                          </span>
+                        </div>
+                        <div className="text-stone-600 mt-0.5">
+                          Pgto: <strong className={appt.paymentStatus === 'pago' ? 'text-teal-800' : 'text-amber-800'}>{appt.paymentStatus.toUpperCase()}</strong>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono-tabular whitespace-nowrap">
+                        <div className="font-semibold text-stone-900">
+                          {formatBRL(appt.estimatedPrice)}
+                        </div>
+                        <div className="text-stone-600">
+                          {appt.depositPaid > 0 ? `Sinal: ${formatBRL(appt.depositPaid)}` : 'Sem sinal'}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5">
+                          {(appt.status === 'confirmado' || appt.status === 'aguardando_sinal' || appt.status === 'solicitado') && (
+                            <button
+                              type="button"
+                              onClick={() => onUpdateAppointmentStatus(appt.id, 'chegou')}
+                              className="px-2.5 py-1.5 text-xs font-medium text-amber-950 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg cursor-pointer"
+                            >
+                              Fazer Check-in
+                            </button>
+                          )}
+                          {(appt.status === 'chegou' || appt.status === 'em_espera' || appt.status === 'confirmado') && (
+                            <button
+                              type="button"
+                              onClick={() => onStartAttendanceAndOpenComanda(appt.id)}
+                              style={{ backgroundColor: salon.theme.primaryColor }}
+                              className="px-2.5 py-1.5 text-xs font-medium text-white rounded-lg hover:opacity-95 cursor-pointer"
+                            >
+                              Iniciar & Abrir Comanda
+                            </button>
+                          )}
+                          {appt.status !== 'cancelado' && appt.status !== 'concluido' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onUpdateAppointmentStatus(appt.id, 'cancelado');
+                                setWaitlistNotified(
+                                  `Horário das ${appt.startTime} (${appt.professionalName}) liberado! Oferta automática enviada para a Lista de Espera.`
+                                );
+                              }}
+                              className="px-2 py-1.5 text-xs text-rose-800 bg-white/80 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                            >
+                              Cancelar
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* Visão 2: Grade de Colunas por Profissional (Seção 5.1) */}
+      {/* Visão 2: Grade de Colunas por Profissional com Cores por Status (Seção 5.1) */}
       {mode === 'agenda' && viewMode === 'colunas_profissional' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {unitProfessionals.map((prof) => {
             const profAppts = filteredAppointments.filter((a) => a.professionalId === prof.id);
+            const activeAppt = baseDateAppointments.find(
+              (a) => a.professionalId === prof.id && a.status === 'em_atendimento'
+            );
+            const waitingAppt = baseDateAppointments.find(
+              (a) =>
+                a.professionalId === prof.id &&
+                (a.status === 'chegou' || a.status === 'em_espera')
+            );
+            const nextConfirmed = baseDateAppointments.find(
+              (a) =>
+                a.professionalId === prof.id &&
+                (a.status === 'confirmado' || a.status === 'aguardando_sinal')
+            );
+
+            // Cor semântica do topo da coluna para entender instantaneamente como está cada profissional
+            const columnStatus = activeAppt
+              ? {
+                  barHex: '#059669',
+                  bgClass: 'bg-emerald-50/90 border-emerald-200',
+                  dotClass: 'bg-emerald-600',
+                  textClass: 'text-emerald-900',
+                  statusSummary: `Em Atendimento · ${activeAppt.clientName.split(' ')[0]}`,
+                }
+              : waitingAppt
+              ? {
+                  barHex: '#D97706',
+                  bgClass: 'bg-amber-50/90 border-amber-200',
+                  dotClass: 'bg-amber-500',
+                  textClass: 'text-amber-900',
+                  statusSummary: `Cliente na Recepção · ${waitingAppt.clientName.split(' ')[0]}`,
+                }
+              : {
+                  barHex: '#0284C7',
+                  bgClass: 'bg-sky-50/70 border-sky-200/80',
+                  dotClass: 'bg-sky-600',
+                  textClass: 'text-sky-900',
+                  statusSummary: nextConfirmed
+                    ? `Cadeira Livre · Próximo às ${nextConfirmed.startTime}`
+                    : 'Cadeira Livre · Disponível p/ Encaixe',
+                };
+
             return (
               <div
                 key={prof.id}
+                style={{
+                  borderTopWidth: '4px',
+                  borderTopColor: columnStatus.barHex,
+                }}
                 className="bg-white rounded-2xl border border-stone-200/80 flex flex-col justify-between overflow-hidden"
               >
                 <div>
-                  {/* Topo da coluna do profissional */}
-                  <div className="p-4 border-b border-stone-200/80 bg-stone-50/60 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        style={{ backgroundColor: salon.theme.primaryColor }}
-                        className="w-9 h-9 rounded-xl text-white font-semibold text-xs flex items-center justify-center shrink-0"
-                      >
-                        {prof.avatarInitials}
+                  {/* Topo da coluna do profissional com indicador visual de ocupação */}
+                  <div className="p-4 border-b border-stone-200/80 bg-stone-50/60 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          style={{ backgroundColor: columnStatus.barHex }}
+                          className="w-9 h-9 rounded-xl text-white font-semibold text-xs flex items-center justify-center shrink-0"
+                        >
+                          {prof.avatarInitials}
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-semibold text-stone-900">{prof.name}</h3>
+                          <p className="text-xs text-stone-500">
+                            {prof.chairLabel} · {prof.workingHours.start}–{prof.workingHours.end}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-sm font-semibold text-stone-900">{prof.name}</h3>
-                        <p className="text-xs text-stone-500">
-                          {prof.chairLabel} · {prof.workingHours.start}–{prof.workingHours.end}
-                        </p>
-                      </div>
+                    </div>
+
+                    {/* Faixa de status em tempo real do profissional */}
+                    <div
+                      className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-2 ${columnStatus.bgClass} ${columnStatus.textClass}`}
+                    >
+                      <span className={`w-2 h-2 rounded-sm shrink-0 ${columnStatus.dotClass}`} />
+                      <span className="truncate">{columnStatus.statusSummary}</span>
                     </div>
                   </div>
 
-                  {/* Compromissos do profissional */}
+                  {/* Compromissos do profissional com cores distintas por status */}
                   <div className="p-3.5 space-y-2.5">
-                    {profAppts.map((appt) => (
-                      <div
-                        key={appt.id}
-                        className="p-3 rounded-xl border border-stone-200/90 bg-stone-50/40 hover:border-stone-300 transition-colors space-y-1.5"
-                      >
-                        <div className="flex items-center justify-between text-xs text-stone-500">
-                          <span className="font-mono-tabular font-semibold text-stone-900">
-                            {appt.startTime} – {appt.endTime}
-                          </span>
-                          <span className="font-medium text-stone-700">{statusText[appt.status]}</span>
-                        </div>
-                        <div className="text-sm font-semibold text-stone-900">{appt.clientName}</div>
-                        <div className="text-xs text-stone-600">{appt.serviceName}</div>
-                        <div className="pt-2 border-t border-stone-200/60 flex items-center justify-between text-xs">
-                          <span className="font-mono-tabular font-medium text-stone-800">
-                            {formatBRL(appt.estimatedPrice)}
-                          </span>
-                          {appt.status === 'confirmado' && (
-                            <button
-                              type="button"
-                              onClick={() => onUpdateAppointmentStatus(appt.id, 'chegou')}
-                              className="text-stone-900 font-medium hover:underline cursor-pointer"
-                            >
-                              Check-in →
-                            </button>
-                          )}
-                          {appt.status === 'chegou' && (
-                            <button
-                              type="button"
-                              onClick={() => onStartAttendanceAndOpenComanda(appt.id)}
-                              className="text-emerald-800 font-semibold hover:underline cursor-pointer"
-                            >
-                              Iniciar Atendimento →
-                            </button>
-                          )}
-                        </div>
+                    {profAppts.length === 0 ? (
+                      <div className="p-4 rounded-xl border border-dashed border-stone-200 text-center text-xs text-stone-500">
+                        Nenhum horário neste filtro de cor.
                       </div>
-                    ))}
+                    ) : (
+                      profAppts.map((appt) => {
+                        const visual = getAppointmentStatusVisual(appt.status);
+                        return (
+                          <div
+                            key={appt.id}
+                            style={{
+                              borderLeftWidth: '5px',
+                              borderLeftColor: visual.accentHex,
+                            }}
+                            className={`p-3 rounded-xl border ${visual.cardBorderClass} ${visual.cardBgClass} transition-all space-y-1.5`}
+                          >
+                            {/* Cabeçalho colorido do cartão */}
+                            <div className="flex items-center justify-between text-xs gap-2">
+                              <span className={`font-mono-tabular font-semibold whitespace-nowrap ${visual.textStrongClass}`}>
+                                {appt.startTime}–{appt.endTime}
+                              </span>
+                              <span className="inline-flex items-center gap-1.5 font-semibold whitespace-nowrap">
+                                <span className={`w-2 h-2 rounded-sm shrink-0 ${visual.dotClass}`} />
+                                <span className={visual.textMutedClass}>
+                                  {statusText[appt.status]}
+                                </span>
+                              </span>
+                            </div>
+
+                            <div className="text-sm font-semibold text-stone-950">
+                              {appt.clientName}
+                            </div>
+                            <div className="text-xs text-stone-700 font-medium">
+                              {appt.serviceName}
+                            </div>
+
+                            {/* Detalhes operacionais: cadeira, check-in, sinal ou notas */}
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-stone-600">
+                              <span>{appt.chairOrRoom}</span>
+                              {appt.checkInTime && (
+                                <span className="text-emerald-800 font-medium font-mono-tabular">
+                                  · Check-in {appt.checkInTime}
+                                </span>
+                              )}
+                              {appt.depositPaid > 0 && (
+                                <span className="text-sky-900 font-medium font-mono-tabular">
+                                  · Sinal {formatBRL(appt.depositPaid)}
+                                </span>
+                              )}
+                            </div>
+
+                            {appt.notes && (
+                              <div className="text-[11px] text-stone-600 italic bg-white/60 px-2 py-1 rounded-lg border border-stone-200/60">
+                                {appt.notes}
+                              </div>
+                            )}
+
+                            <div className="pt-2 border-t border-stone-200/70 flex items-center justify-between gap-2 text-xs">
+                              <span className="font-mono-tabular font-semibold text-stone-900 whitespace-nowrap">
+                                {formatBRL(appt.estimatedPrice)}
+                              </span>
+                              {(appt.status === 'confirmado' || appt.status === 'aguardando_sinal') && (
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateAppointmentStatus(appt.id, 'chegou')}
+                                  className="px-2 py-1 rounded-md bg-amber-100 hover:bg-amber-200 text-amber-950 font-semibold cursor-pointer transition-colors whitespace-nowrap"
+                                >
+                                  Check-in →
+                                </button>
+                              )}
+                              {(appt.status === 'chegou' || appt.status === 'em_espera') && (
+                                <button
+                                  type="button"
+                                  onClick={() => onStartAttendanceAndOpenComanda(appt.id)}
+                                  className="px-2 py-1 rounded-md bg-emerald-700 hover:bg-emerald-800 text-white font-semibold cursor-pointer transition-colors whitespace-nowrap"
+                                >
+                                  Iniciar na Cadeira →
+                                </button>
+                              )}
+                              {appt.status === 'em_atendimento' && (
+                                <span className="text-[11px] font-semibold text-emerald-800 font-mono-tabular whitespace-nowrap">
+                                  Início {appt.serviceStartTime || appt.startTime}
+                                </span>
+                              )}
+                              {appt.status === 'concluido' && (
+                                <span className="text-[11px] font-semibold text-teal-800 whitespace-nowrap">
+                                  Finalizado ({appt.paymentStatus.toUpperCase()})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
 
                     {/* Intervalo de almoço bloqueado (Seção 5.3) */}
-                    <div className="p-2.5 rounded-xl border border-dashed border-stone-200 bg-stone-50/50 flex items-center justify-between text-xs text-stone-500">
+                    <div className="p-2.5 rounded-xl border border-dashed border-stone-300 bg-stone-100/70 flex items-center justify-between text-xs text-stone-600">
                       <span className="flex items-center gap-1.5">
-                        <Lock className="w-3.5 h-3.5 text-stone-400" />
+                        <Lock className="w-3.5 h-3.5 text-stone-500" />
                         <span>Intervalo de Almoço Bloqueado</span>
                       </span>
-                      <span className="font-mono-tabular">
+                      <span className="font-mono-tabular font-medium">
                         {prof.workingHours.lunchStart} – {prof.workingHours.lunchEnd}
                       </span>
                     </div>
@@ -686,33 +947,112 @@ export const AgendaAndReceptionView: React.FC<AgendaAndReceptionViewProps> = ({
         </div>
       )}
 
-      {/* Visão 3: Por Sala, Cadeira ou Equipamento (Seção 5.1) */}
+      {/* Visão 3: Por Sala, Cadeira ou Equipamento com Cores de Ocupação (Seção 5.1) */}
       {mode === 'agenda' && viewMode === 'recursos' && (
         <div className="bg-white rounded-2xl p-5 border border-stone-200/80 space-y-4">
-          <h2 className="text-lg font-semibold text-stone-900">
-            Ocupação por Cadeira, Lavatório Spa e Cabines
-          </h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-semibold text-stone-900">
+                Ocupação Visual por Cadeira, Lavatório Spa e Cabines
+              </h2>
+              <p className="text-xs text-stone-500">
+                Cores indicam se o espaço físico está ocupado agora (verde), com cliente aguardando (âmbar), reservado (azul), aguardando sinal (violeta) ou livre
+              </p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {(salon.units[0]?.rooms || []).map((room) => {
               const roomAppts = filteredAppointments.filter((a) => a.chairOrRoom === room);
+              const isBusyNow = roomAppts.some((a) => a.status === 'em_atendimento');
+              const hasWaiting = roomAppts.some(
+                (a) => a.status === 'chegou' || a.status === 'em_espera'
+              );
+              const hasConfirmed = roomAppts.some((a) => a.status === 'confirmado');
+              const hasPendingDeposit = roomAppts.some(
+                (a) => a.status === 'aguardando_sinal' || a.status === 'solicitado'
+              );
+
+              const roomVisual = isBusyNow
+                ? {
+                    borderHex: '#059669',
+                    bgClass: 'bg-emerald-50/50 border-emerald-200',
+                    statusLabel: 'Em Uso Agora',
+                    statusColor: 'text-emerald-800',
+                    dotClass: 'bg-emerald-600',
+                  }
+                : hasWaiting
+                ? {
+                    borderHex: '#D97706',
+                    bgClass: 'bg-amber-50/50 border-amber-200',
+                    statusLabel: 'Cliente na Recepção',
+                    statusColor: 'text-amber-800',
+                    dotClass: 'bg-amber-500',
+                  }
+                : hasConfirmed
+                ? {
+                    borderHex: '#0284C7',
+                    bgClass: 'bg-sky-50/40 border-sky-200',
+                    statusLabel: 'Reservado Confirmado',
+                    statusColor: 'text-sky-800',
+                    dotClass: 'bg-sky-600',
+                  }
+                : hasPendingDeposit
+                ? {
+                    borderHex: '#7C3AED',
+                    bgClass: 'bg-violet-50/45 border-violet-200',
+                    statusLabel: 'Aguardando Sinal',
+                    statusColor: 'text-violet-800',
+                    dotClass: 'bg-violet-600',
+                  }
+                : {
+                    borderHex: '#A8A29E',
+                    bgClass: 'bg-stone-50/40 border-stone-200/80',
+                    statusLabel: 'Livre Agora',
+                    statusColor: 'text-stone-600',
+                    dotClass: 'bg-stone-400',
+                  };
+
               return (
-                <div key={room} className="p-4 rounded-xl border border-stone-200/80 space-y-2">
+                <div
+                  key={room}
+                  style={{
+                    borderLeftWidth: '5px',
+                    borderLeftColor: roomVisual.borderHex,
+                  }}
+                  className={`p-4 rounded-xl border ${roomVisual.bgClass} space-y-2.5`}
+                >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold text-stone-900">{room}</span>
-                    <span className="text-xs text-stone-500 font-mono-tabular">
-                      {roomAppts.length} reservas
+                    <span className={`text-xs font-semibold flex items-center gap-1.5 ${roomVisual.statusColor}`}>
+                      <span className={`w-2 h-2 rounded-sm ${roomVisual.dotClass}`} />
+                      <span>{roomVisual.statusLabel}</span>
                     </span>
                   </div>
                   {roomAppts.length === 0 ? (
                     <p className="text-xs text-stone-500">Livre para alocação imediata</p>
                   ) : (
-                    <div className="space-y-1.5">
-                      {roomAppts.map((a) => (
-                        <div key={a.id} className="text-xs text-stone-700 flex items-center justify-between">
-                          <span className="font-mono-tabular font-medium">{a.startTime}–{a.endTime}</span>
-                          <span className="truncate max-w-[180px]">{a.clientName} ({a.professionalName.split(' ')[0]})</span>
-                        </div>
-                      ))}
+                    <div className="space-y-1.5 pt-1">
+                      {roomAppts.map((a) => {
+                        const aVisual = getAppointmentStatusVisual(a.status);
+                        return (
+                          <div
+                            key={a.id}
+                            style={{
+                              borderLeftWidth: '3px',
+                              borderLeftColor: aVisual.accentHex,
+                            }}
+                            className="text-xs bg-white/90 px-2.5 py-1.5 rounded-lg border border-stone-200/70 flex items-center justify-between gap-2"
+                          >
+                            <span className={`font-mono-tabular font-semibold ${aVisual.textStrongClass}`}>
+                              {a.startTime}–{a.endTime}
+                            </span>
+                            <span className="truncate font-medium text-stone-800">
+                              {a.clientName} ({a.professionalName.split(' ')[0]})
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
