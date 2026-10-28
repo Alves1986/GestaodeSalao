@@ -88,6 +88,7 @@ import { CatalogAndStockView } from './components/CatalogAndStockView';
 import { FinancialAndReportsView } from './components/FinancialAndReportsView';
 import { SettingsAndPortalsView } from './components/SettingsAndPortalsView';
 import { AuthModal } from './components/AuthModal';
+import { AuthScreen } from './components/AuthScreen';
 import {
   AuthUser,
   DbStatus,
@@ -745,6 +746,18 @@ export default function App() {
     setSelectedComandaId(newId);
     createComandaInDb(newCmd);
   };
+
+  // Quando não houver sessão ativa e não estiver na visualização pública, renderiza a tela de login estruturada
+  if (!authUser && environmentMode !== 'client_portal') {
+    return (
+      <AuthScreen
+        dbStatus={dbStatus}
+        isDbLoading={isDbLoading}
+        onLoginSuccess={handleLoginSuccess}
+        onViewClientPortal={() => setEnvironmentMode('client_portal')}
+      />
+    );
+  }
 
   return (
     <div
