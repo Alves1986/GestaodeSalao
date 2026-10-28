@@ -87,7 +87,6 @@ import { ComandasAndAttendanceView } from './components/ComandasAndAttendanceVie
 import { CatalogAndStockView } from './components/CatalogAndStockView';
 import { FinancialAndReportsView } from './components/FinancialAndReportsView';
 import { SettingsAndPortalsView } from './components/SettingsAndPortalsView';
-import { AuthModal } from './components/AuthModal';
 import { AuthScreen } from './components/AuthScreen';
 import {
   AuthUser,
@@ -176,7 +175,6 @@ export default function App() {
 
   // Autenticação & Usuário
   const [authUser, setAuthUser] = useState<AuthUser | null>(getStoredUser());
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(!getStoredUser());
 
   // Carregamento de dados por Tenant direto do Neon Postgres
   const loadTenantData = async (tenantId?: string) => {
@@ -200,16 +198,13 @@ export default function App() {
         if (!tenantId && !activeSalonId && fetchedTenants[0]?.id) {
           setActiveSalonId(fetchedTenants[0].id);
         }
-      } else {
-        // Se ainda não há salões cadastrados no DB, abre o modal de cadastro/login
-        setIsAuthModalOpen(true);
       }
 
       // Se o usuário logado pertence a um tenant que não existe mais (ex: reset de dados), limpa
       if (authUser && fetchedTenants.length > 0 && !fetchedTenants.some((t) => t.id === authUser.tenantId)) {
         clearStoredUser();
         setAuthUser(null);
-        setIsAuthModalOpen(true);
+        setEnvironmentMode('salon_admin');
       }
 
       setProfessionals(fetchedProfs);
@@ -245,14 +240,14 @@ export default function App() {
     if (user.role) {
       setCurrentRole(user.role);
     }
-    setIsAuthModalOpen(false);
+    setEnvironmentMode('salon_admin');
     loadTenantData(user.tenantId);
   };
 
   const handleLogout = () => {
     clearStoredUser();
     setAuthUser(null);
-    setIsAuthModalOpen(true);
+    setEnvironmentMode('salon_admin');
   };
 
   const activeSalon =
@@ -764,15 +759,16 @@ export default function App() {
       style={{ backgroundColor: activeSalon.theme.backgroundColor }}
       className="min-h-screen flex flex-col lg:flex-row text-stone-900"
     >
-      {/* MENU LATERAL FIXO COM LOGO DO SALÃO (Seção 2.1 e Seção 3) */}
-      <aside
-        style={{ backgroundColor: activeSalon.theme.primaryColor }}
-        className={`${
-          mobileMenuOpen ? 'fixed inset-y-0 left-0 z-40 w-72 flex' : 'hidden lg:flex'
-        } shrink-0 text-white flex-col justify-between transition-all duration-200 ${
-          sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'
-        }`}
-      >
+      {/* MENU LATERAL FIXO COM LOGO DO SALÃO (Seção 2.1 e Seção 3) - Oculto na visualização pública do cliente */}
+      {environmentMode !== 'client_portal' && (
+        <aside
+          style={{ backgroundColor: activeSalon.theme.primaryColor }}
+          className={`${
+            mobileMenuOpen ? 'fixed inset-y-0 left-0 z-40 w-72 flex' : 'hidden lg:flex'
+          } shrink-0 text-white flex-col justify-between transition-all duration-200 ${
+            sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'
+          }`}
+        >
         <div>
           {/* Identidade Visual do Salão no Topo da Sidebar */}
           <div className="p-4 border-b border-white/10 flex items-center justify-between gap-2.5">
@@ -863,7 +859,7 @@ export default function App() {
                     setMobileMenuOpen(false);
                   }}
                   className={`py-1.5 px-2 rounded-lg font-medium text-left truncate cursor-pointer ${
-                    environmentMode === 'client_portal'
+                    (environmentMode as string) === 'client_portal'
                       ? 'bg-white text-stone-900'
                       : 'text-white/80 hover:text-white'
                   }`}
@@ -951,79 +947,97 @@ export default function App() {
           </div>
         )}
       </aside>
+      )}
 
       {/* ÁREA DE CONTEÚDO PRINCIPAL + BARRA SUPERIOR (Seção 2.1) */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Barra Superior: 3 zonas em linha única no desktop */}
         <header className="bg-white/95 backdrop-blur-xs border-b border-stone-200/80 px-4 lg:px-6 py-3 flex items-center justify-between gap-3 sticky top-0 z-20">
-          {/* Zona 1: Menu Mobile + Busca Global */}
-          <div className="flex items-center gap-2.5 min-w-0">
-            <button
-              type="button"
-              aria-label="Abrir menu de navegação"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              style={{ backgroundColor: activeSalon.theme.primaryColor }}
-              className="lg:hidden px-2.5 py-1.5 rounded-lg text-white text-xs font-medium shrink-0"
-            >
-              Menu
-            </button>
-            <div className="relative w-44 sm:w-56 xl:w-64">
-              <Search className="w-3.5 h-3.5 text-stone-400 stroke-[1.5] absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                aria-label="Busca global de clientes, comandas ou serviços"
-                placeholder="Buscar cliente, comanda #2041..."
-                value={globalSearch}
-                onChange={(e) => setGlobalSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && globalSearch.trim()) {
-                    setEnvironmentMode('salon_admin');
-                    setActiveMenu('agenda');
-                  }
-                }}
-                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-stone-200/90 bg-stone-50/70 text-stone-900 focus:bg-white focus:outline-none focus:border-stone-400"
-              />
-            </div>
-          </div>
-
-          {/* Zona 2: Seletores de Unidade e Perfil de Permissão (Seção 17 e 18) */}
-          <div className="hidden md:flex items-center gap-2.5 text-xs shrink-0">
-            <div className="flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5 text-stone-500 stroke-[1.5]" />
-              <select
-                aria-label="Selecionar unidade do salão"
-                value={selectedUnitId}
-                onChange={(e) => setSelectedUnitId(e.target.value)}
-                className="border border-stone-200 rounded-lg px-2 py-1.5 bg-white text-stone-800 font-medium"
+          {/* Zona 1: Menu Mobile + Busca Global (ou Logo na visão pública) */}
+          {environmentMode !== 'client_portal' ? (
+            <div className="flex items-center gap-2.5 min-w-0">
+              <button
+                type="button"
+                aria-label="Abrir menu de navegação"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                style={{ backgroundColor: activeSalon.theme.primaryColor }}
+                className="lg:hidden px-2.5 py-1.5 rounded-lg text-white text-xs font-medium shrink-0"
               >
-                <option value="todas">Todas as Unidades ({activeSalon.units.length})</option>
-                {activeSalon.units.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </select>
+                Menu
+              </button>
+              <div className="relative w-44 sm:w-56 xl:w-64">
+                <Search className="w-3.5 h-3.5 text-stone-400 stroke-[1.5] absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  aria-label="Busca global de clientes, comandas ou serviços"
+                  placeholder="Buscar cliente, comanda #2041..."
+                  value={globalSearch}
+                  onChange={(e) => setGlobalSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && globalSearch.trim()) {
+                      setEnvironmentMode('salon_admin');
+                      setActiveMenu('agenda');
+                    }
+                  }}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-stone-200/90 bg-stone-50/70 text-stone-900 focus:bg-white focus:outline-none focus:border-stone-400"
+                />
+              </div>
             </div>
-
-            <div className="flex items-center gap-1.5">
-              <span className="text-stone-500">Perfil:</span>
-              <select
-                aria-label="Simular perfil de permissão de usuário"
-                value={currentRole}
-                onChange={(e) => setCurrentRole(e.target.value as UserRole)}
-                className="border border-stone-200 rounded-lg px-2 py-1.5 bg-white text-stone-900 font-medium"
+          ) : (
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div
+                style={{ backgroundColor: activeSalon.theme.primaryColor }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0"
               >
-                <option value="proprietario">Proprietário (Total)</option>
-                <option value="gerente">Gerente</option>
-                <option value="recepcao">Recepção</option>
-                <option value="caixa">Caixa</option>
-                <option value="financeiro">Financeiro</option>
-                <option value="profissional">Profissional</option>
-                <option value="estoque">Estoque</option>
-                <option value="marketing">Marketing</option>
-              </select>
+                {activeSalon.theme.shortIconText}
+              </div>
+              <div>
+                <span className="text-xs font-semibold text-stone-900 block leading-tight">{activeSalon.commercialName}</span>
+                <span className="text-[10px] text-stone-500 block">Página Pública de Agendamento Online</span>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Zona 2: Seletores de Unidade e Perfil de Permissão (Seção 17 e 18) - Somente na área administrativa */}
+          {environmentMode !== 'client_portal' && (
+            <div className="hidden md:flex items-center gap-2.5 text-xs shrink-0">
+              <div className="flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-stone-500 stroke-[1.5]" />
+                <select
+                  aria-label="Selecionar unidade do salão"
+                  value={selectedUnitId}
+                  onChange={(e) => setSelectedUnitId(e.target.value)}
+                  className="border border-stone-200 rounded-lg px-2 py-1.5 bg-white text-stone-800 font-medium"
+                >
+                  <option value="todas">Todas as Unidades ({activeSalon.units.length})</option>
+                  {activeSalon.units.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-stone-500">Perfil:</span>
+                <select
+                  aria-label="Simular perfil de permissão de usuário"
+                  value={currentRole}
+                  onChange={(e) => setCurrentRole(e.target.value as UserRole)}
+                  className="border border-stone-200 rounded-lg px-2 py-1.5 bg-white text-stone-900 font-medium"
+                >
+                  <option value="proprietario">Proprietário (Total)</option>
+                  <option value="gerente">Gerente</option>
+                  <option value="recepcao">Recepção</option>
+                  <option value="caixa">Caixa</option>
+                  <option value="financeiro">Financeiro</option>
+                  <option value="profissional">Profissional</option>
+                  <option value="estoque">Estoque</option>
+                  <option value="marketing">Marketing</option>
+                </select>
+              </div>
+            </div>
+          )}
 
           {/* Zona 3: Data & Conexão Neon & Ação Rápida */}
           <div className="flex items-center gap-2.5 shrink-0">
@@ -1078,11 +1092,11 @@ export default function App() {
             ) : (
               <button
                 type="button"
-                onClick={() => setIsAuthModalOpen(true)}
+                onClick={() => setEnvironmentMode('salon_admin')}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[#143328] hover:bg-[#1a4436] rounded-xl transition-colors cursor-pointer shadow-xs"
               >
                 <LogIn className="w-3.5 h-3.5" />
-                <span>Entrar / Cadastrar</span>
+                <span>Entrar no Painel</span>
               </button>
             )}
           </div>
@@ -1595,13 +1609,6 @@ export default function App() {
           )}
         </main>
       </div>
-
-      {/* Modal / Tela de Autenticação e Cadastro */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={authUser ? () => setIsAuthModalOpen(false) : undefined}
-        onLoginSuccess={handleLoginSuccess}
-      />
     </div>
   );
 }
