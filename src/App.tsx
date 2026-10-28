@@ -17,6 +17,8 @@ import {
   FileText,
   Gift,
   LayoutDashboard,
+  LogIn,
+  LogOut,
   MessageSquare,
   Package,
   Percent,
@@ -56,6 +58,7 @@ import {
   UserRole,
 } from './types/salon';
 import {
+  FALLBACK_SALON,
   INITIAL_APPOINTMENTS,
   INITIAL_AUDIT_LOGS,
   INITIAL_AUTOMATIONS,
@@ -84,15 +87,32 @@ import { ComandasAndAttendanceView } from './components/ComandasAndAttendanceVie
 import { CatalogAndStockView } from './components/CatalogAndStockView';
 import { FinancialAndReportsView } from './components/FinancialAndReportsView';
 import { SettingsAndPortalsView } from './components/SettingsAndPortalsView';
+import { AuthModal } from './components/AuthModal';
 import {
+  AuthUser,
   DbStatus,
+  generateUuid,
   getDbStatus,
+  getStoredUser,
+  clearStoredUser,
   fetchTenantsFromDb,
+  createTenantInDb,
+  updateTenantInDb,
   fetchProfessionalsFromDb,
+  createProfessionalInDb,
   fetchServicesFromDb,
+  createServiceInDb,
   fetchClientsFromDb,
   createClientInDb,
-  createServiceInDb,
+  fetchAppointmentsFromDb,
+  createAppointmentInDb,
+  updateAppointmentInDb,
+  fetchComandasFromDb,
+  createComandaInDb,
+  updateComandaInDb,
+  fetchProductsFromDb,
+  createProductInDb,
+  updateProductInDb,
 } from './services/dbClient';
 
 const MENU_ITEMS: {
@@ -153,48 +173,91 @@ export default function App() {
   const [dbStatus, setDbStatus] = useState<DbStatus | null>(null);
   const [isDbLoading, setIsDbLoading] = useState<boolean>(true);
 
-  // Sincronização inicial em tempo real com o Neon DB
-  useEffect(() => {
-    let isMounted = true;
-    async function initDbSync() {
-      try {
-        setIsDbLoading(true);
-        const [status, fetchedTenants, fetchedProfs, fetchedServices, fetchedClients] = await Promise.all([
+  // Autenticação & Usuário
+  const [authUser, setAuthUser] = useState<AuthUser | null>(getStoredUser());
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(!getStoredUser());
+
+  // Carregamento de dados por Tenant direto do Neon Postgres
+  const loadTenantData = async (tenantId?: string) => {
+    try {
+      setIsDbLoading(true);
+      const [status, fetchedTenants, fetchedProfs, fetchedServices, fetchedClients, fetchedAppts, fetchedCmds, fetchedProds] =
+        await Promise.all([
           getDbStatus(),
           fetchTenantsFromDb(),
-          fetchProfessionalsFromDb(),
-          fetchServicesFromDb(),
-          fetchClientsFromDb(),
+          fetchProfessionalsFromDb(tenantId),
+          fetchServicesFromDb(tenantId),
+          fetchClientsFromDb(tenantId),
+          fetchAppointmentsFromDb(tenantId),
+          fetchComandasFromDb(tenantId),
+          fetchProductsFromDb(tenantId),
         ]);
 
-        if (isMounted) {
-          if (status) setDbStatus(status);
-          if (fetchedTenants.length > 0) setSalons(fetchedTenants);
-          if (fetchedProfs.length > 0) setProfessionals(fetchedProfs);
-          if (fetchedServices.length > 0) setServices(fetchedServices);
-          if (fetchedClients.length > 0) setClients(fetchedClients);
-          setIsDbLoading(false);
+      if (status) setDbStatus(status);
+      if (fetchedTenants.length > 0) {
+        setSalons(fetchedTenants);
+        if (!tenantId && !activeSalonId && fetchedTenants[0]?.id) {
+          setActiveSalonId(fetchedTenants[0].id);
         }
-      } catch (e) {
-        console.warn('Erro ao sincronizar com Neon DB:', e);
-        if (isMounted) setIsDbLoading(false);
+      } else {
+        // Se ainda não há salões cadastrados no DB, abre o modal de cadastro/login
+        setIsAuthModalOpen(true);
       }
-    }
 
-    initDbSync();
+      // Se o usuário logado pertence a um tenant que não existe mais (ex: reset de dados), limpa
+      if (authUser && fetchedTenants.length > 0 && !fetchedTenants.some((t) => t.id === authUser.tenantId)) {
+        clearStoredUser();
+        setAuthUser(null);
+        setIsAuthModalOpen(true);
+      }
+
+      setProfessionals(fetchedProfs);
+      setServices(fetchedServices);
+      setClients(fetchedClients);
+      setAppointments(fetchedAppts);
+      setComandas(fetchedCmds);
+      setProducts(fetchedProds);
+      setIsDbLoading(false);
+    } catch (e) {
+      console.warn('Erro ao carregar dados do Neon DB:', e);
+      setIsDbLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const currentTenant = authUser?.tenantId || activeSalonId;
+    loadTenantData(currentTenant);
 
     const interval = setInterval(async () => {
       const s = await getDbStatus();
-      if (isMounted && s) setDbStatus(s);
+      if (s) setDbStatus(s);
     }, 20000);
 
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, []);
+    return () => clearInterval(interval);
+  }, [activeSalonId, authUser?.tenantId]);
 
-  const activeSalon = salons.find((s) => s.id === activeSalonId) || salons[0];
+  const handleLoginSuccess = (user: AuthUser) => {
+    setAuthUser(user);
+    if (user.tenantId) {
+      setActiveSalonId(user.tenantId);
+    }
+    if (user.role) {
+      setCurrentRole(user.role);
+    }
+    setIsAuthModalOpen(false);
+    loadTenantData(user.tenantId);
+  };
+
+  const handleLogout = () => {
+    clearStoredUser();
+    setAuthUser(null);
+    setIsAuthModalOpen(true);
+  };
+
+  const activeSalon =
+    salons.find((s) => s.id === activeSalonId || (s as any).slug === activeSalonId) ||
+    salons[0] ||
+    FALLBACK_SALON;
   const allowedMenus = getAllowedMenusForRole(currentRole);
 
   // Sync CSS theme variables with the active salon's White-Label theme (Seção 2.2)
@@ -232,36 +295,58 @@ export default function App() {
   };
 
   // Handlers connecting Agenda -> Recepção -> Comanda -> Pagamento -> Caixa -> Estoque -> Comissão
-  const handleCreateAppointment = (newAppt: Omit<Appointment, 'id'>) => {
+  const handleCreateAppointment = async (newAppt: Omit<Appointment, 'id'>) => {
+    const tempId = generateUuid();
     const created: Appointment = {
       ...newAppt,
-      id: `ag-${Date.now()}`,
+      id: tempId,
     };
-    setAppointments((prev) => [...prev, created]);
+    setAppointments((prev) => [created, ...prev]);
     appendAudit(
       'Novo Agendamento Criado',
       'Agenda',
       `${created.clientName} agendado para ${created.serviceName} às ${created.startTime} com ${created.professionalName}.`
     );
+
+    // Persiste no Neon
+    const saved = await createAppointmentInDb({
+      ...created,
+      salonId: activeSalon.id,
+      unitId: selectedUnitId !== 'todas' ? selectedUnitId : activeSalon.units[0]?.id,
+    });
+    if (saved?.id) {
+      setAppointments((prev) => prev.map((a) => (a.id === tempId ? { ...a, id: saved.id } : a)));
+    }
   };
 
-  const handleUpdateAppointmentStatus = (appointmentId: string, newStatus: AppointmentStatus) => {
+  const handleUpdateAppointmentStatus = async (appointmentId: string, newStatus: AppointmentStatus) => {
+    const checkInTime = newStatus === 'chegou' ? '15:05' : undefined;
+    const serviceStartTime = newStatus === 'em_atendimento' ? '15:10' : undefined;
+    const serviceEndTime = newStatus === 'concluido' ? '16:10' : undefined;
+
     setAppointments((prev) =>
       prev.map((a) =>
         a.id === appointmentId
           ? {
               ...a,
               status: newStatus,
-              checkInTime: newStatus === 'chegou' ? '15:05' : a.checkInTime,
-              serviceStartTime: newStatus === 'em_atendimento' ? '15:10' : a.serviceStartTime,
-              serviceEndTime: newStatus === 'concluido' ? '16:10' : a.serviceEndTime,
+              checkInTime: checkInTime || a.checkInTime,
+              serviceStartTime: serviceStartTime || a.serviceStartTime,
+              serviceEndTime: serviceEndTime || a.serviceEndTime,
             }
           : a
       )
     );
+
+    // Persiste no Neon
+    await updateAppointmentInDb(appointmentId, {
+      status: newStatus,
+      checkInTime,
+      serviceStartTime,
+    });
   };
 
-  const handleStartAttendanceAndOpenComanda = (appointmentId: string) => {
+  const handleStartAttendanceAndOpenComanda = async (appointmentId: string) => {
     const appt = appointments.find((a) => a.id === appointmentId);
     if (!appt) return;
 
@@ -274,13 +359,13 @@ export default function App() {
     }
 
     const srv = services.find((s) => s.id === appt.serviceId);
-    const newComandaId = `cmd-${Date.now()}`;
+    const newComandaId = generateUuid();
     const newComandaNumber = 2040 + comandas.length + 1;
 
     const newComanda: Comanda = {
       id: newComandaId,
       number: newComandaNumber,
-      salonId: appt.salonId,
+      salonId: appt.salonId || activeSalon.id,
       unitId: appt.unitId,
       appointmentId: appt.id,
       clientId: appt.clientId,
@@ -296,7 +381,7 @@ export default function App() {
       nfseStatus: 'nao_solicitada',
       items: [
         {
-          id: `ci-${Date.now()}`,
+          id: generateUuid(),
           type: 'servico',
           referenceId: appt.serviceId,
           name: appt.serviceName,
@@ -333,6 +418,13 @@ export default function App() {
       'Recepção & Comandas',
       `Cliente ${appt.clientName} iniciou ${appt.serviceName}. Sinal prévio abatido: R$ ${appt.depositPaid}.`
     );
+
+    // Persiste no Neon
+    createComandaInDb(newComanda);
+    updateAppointmentInDb(appointmentId, {
+      status: 'em_atendimento',
+      serviceStartTime: '15:10',
+    });
   };
 
   const handleTransferProfessional = (appointmentId: string, newProfessionalId: string) => {
@@ -353,23 +445,31 @@ export default function App() {
   };
 
   const handleAddComandaItem = (comandaId: string, item: Omit<ComandaItem, 'id'>) => {
-    const newItem: ComandaItem = { ...item, id: `ci-${Date.now()}` };
+    const newItem: ComandaItem = { ...item, id: generateUuid() };
+    const cmd = comandas.find((c) => c.id === comandaId);
+    if (!cmd) return;
+    const nextItems = [...cmd.items, newItem];
+
     setComandas((prev) =>
-      prev.map((c) => (c.id === comandaId ? { ...c, items: [...c.items, newItem] } : c))
+      prev.map((c) => (c.id === comandaId ? { ...c, items: nextItems } : c))
     );
+    updateComandaInDb(comandaId, { items: nextItems });
 
     // Se for produto de revenda, baixa automaticamente o estoque (Seção 10 e 13)
     if (item.type === 'produto') {
       setProducts((prev) =>
-        prev.map((p) =>
-          p.id === item.referenceId
-            ? { ...p, currentStock: Math.max(0, p.currentStock - item.quantity) }
-            : p
-        )
+        prev.map((p) => {
+          if (p.id === item.referenceId) {
+            const nextStock = Math.max(0, p.currentStock - item.quantity);
+            updateProductInDb(p.id, { currentStock: nextStock });
+            return { ...p, currentStock: nextStock };
+          }
+          return p;
+        })
       );
       setStockMovements((prev) => [
         {
-          id: `mov-${Date.now()}`,
+          id: generateUuid(),
           salonId: activeSalon.id,
           productId: item.referenceId,
           productName: item.name,
@@ -385,31 +485,28 @@ export default function App() {
     }
 
     // Gera registro de comissão prevista
-    const cmd = comandas.find((c) => c.id === comandaId);
-    if (cmd) {
-      const base = item.unitPrice * item.quantity - item.discount;
-      const commVal = Number(((base * item.commissionPct) / 100).toFixed(2));
-      setCommissions((prev) => [
-        {
-          id: `com-${Date.now()}`,
-          salonId: activeSalon.id,
-          comandaId: cmd.id,
-          comandaNumber: cmd.number,
-          professionalId: item.professionalId,
-          professionalName: item.professionalName,
-          roleInService: item.type === 'produto' ? 'vendedor_produto' : 'executor',
-          itemDescription: item.name,
-          grossValue: base,
-          discountApplied: item.discount,
-          calculationBase: base,
-          commissionPct: item.commissionPct,
-          commissionAmount: commVal,
-          status: 'prevista',
-          date: '2026-10-26',
-        },
-        ...prev,
-      ]);
-    }
+    const base = item.unitPrice * item.quantity - item.discount;
+    const commVal = Number(((base * item.commissionPct) / 100).toFixed(2));
+    setCommissions((prev) => [
+      {
+        id: generateUuid(),
+        salonId: activeSalon.id,
+        comandaId: cmd.id,
+        comandaNumber: cmd.number,
+        professionalId: item.professionalId,
+        professionalName: item.professionalName,
+        roleInService: item.type === 'produto' ? 'vendedor_produto' : 'executor',
+        itemDescription: item.name,
+        grossValue: base,
+        discountApplied: item.discount,
+        calculationBase: base,
+        commissionPct: item.commissionPct,
+        commissionAmount: commVal,
+        status: 'prevista',
+        date: '2026-10-26',
+      },
+      ...prev,
+    ]);
   };
 
   // Regra 6 (Seção 21): Um item cancelado gera os ajustes de estoque, comissão e financeiro correspondentes
@@ -418,30 +515,36 @@ export default function App() {
     const targetItem = cmd?.items.find((i) => i.id === itemId);
     if (!cmd || !targetItem) return;
 
+    const nextItems = cmd.items.map((i) =>
+      i.id === itemId ? { ...i, cancelled: true, cancelReason: reason } : i
+    );
+
     setComandas((prev) =>
       prev.map((c) =>
         c.id === comandaId
           ? {
               ...c,
-              items: c.items.map((i) =>
-                i.id === itemId ? { ...i, cancelled: true, cancelReason: reason } : i
-              ),
+              items: nextItems,
             }
           : c
       )
     );
+    updateComandaInDb(comandaId, { items: nextItems });
 
     if (targetItem.type === 'produto') {
       setProducts((prev) =>
-        prev.map((p) =>
-          p.id === targetItem.referenceId
-            ? { ...p, currentStock: p.currentStock + targetItem.quantity }
-            : p
-        )
+        prev.map((p) => {
+          if (p.id === targetItem.referenceId) {
+            const nextStock = p.currentStock + targetItem.quantity;
+            updateProductInDb(p.id, { currentStock: nextStock });
+            return { ...p, currentStock: nextStock };
+          }
+          return p;
+        })
       );
       setStockMovements((prev) => [
         {
-          id: `mov-est-${Date.now()}`,
+          id: generateUuid(),
           salonId: activeSalon.id,
           productId: targetItem.referenceId,
           productName: targetItem.name,
@@ -474,6 +577,7 @@ export default function App() {
         c.id === comandaId ? { ...c, globalDiscount, tipAmount } : c
       )
     );
+    updateComandaInDb(comandaId, { globalDiscount, tipAmount });
   };
 
   // Regra 4 (Seção 21): Concluir atendimento não marca automaticamente a dívida como paga
@@ -488,6 +592,7 @@ export default function App() {
           : c
       )
     );
+    updateComandaInDb(comandaId, { attendanceStatus: 'concluido', comandaStatus: 'fechada_pendente' });
 
     if (cmd.appointmentId) {
       handleUpdateAppointmentStatus(cmd.appointmentId, 'concluido');
@@ -519,7 +624,7 @@ export default function App() {
       const nextPayments = [
         ...c.payments,
         {
-          id: `pay-${Date.now()}`,
+          id: generateUuid(),
           method,
           amount,
           installments,
@@ -546,13 +651,24 @@ export default function App() {
 
     setComandas(updatedComandas);
 
+    const targetCmd = updatedComandas.find((c) => c.id === comandaId);
+    if (targetCmd) {
+      updateComandaInDb(comandaId, {
+        attendanceStatus: targetCmd.attendanceStatus,
+        comandaStatus: targetCmd.comandaStatus,
+        paymentStatus: targetCmd.paymentStatus,
+        closedAt: targetCmd.closedAt,
+        payments: targetCmd.payments,
+      });
+    }
+
     // Atualiza sessão de caixa (separando dinheiro físico de Pix/Cartão)
     setCashSession((prev) => ({
       ...prev,
       movements: [
         ...prev.movements,
         {
-          id: `cm-${Date.now()}`,
+          id: generateUuid(),
           type: 'entrada_venda',
           paymentMethod: method,
           description: `Comanda #${cmd.number} · ${cmd.clientName} (${payerLabel})`,
@@ -604,7 +720,7 @@ export default function App() {
   const handleCreateStandaloneComanda = (clientId: string) => {
     const cli = clients.find((c) => c.id === clientId) || clients[0];
     if (!cli) return;
-    const newId = `cmd-${Date.now()}`;
+    const newId = generateUuid();
     const newNum = 2040 + comandas.length + 1;
     const newCmd: Comanda = {
       id: newId,
@@ -613,7 +729,7 @@ export default function App() {
       unitId: activeSalon.units[0]?.id || 'unit-1',
       clientId: cli.id,
       clientName: cli.name,
-      openedAt: '15:30',
+      openedAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       attendanceStatus: 'em_andamento',
       comandaStatus: 'aberta',
       paymentStatus: 'pendente',
@@ -627,6 +743,7 @@ export default function App() {
     };
     setComandas((prev) => [newCmd, ...prev]);
     setSelectedComandaId(newId);
+    createComandaInDb(newCmd);
   };
 
   return (
@@ -928,6 +1045,33 @@ export default function App() {
                 ? 'Painel do Salão'
                 : 'Página Pública do Cliente'}
             </button>
+
+            {/* Sistema de Login / Usuário Conectado */}
+            {authUser ? (
+              <div className="flex items-center gap-2 pl-2 border-l border-stone-200">
+                <div className="hidden sm:flex flex-col text-right">
+                  <span className="text-xs font-semibold text-stone-900 leading-tight">{authUser.fullName}</span>
+                  <span className="text-[10px] text-stone-500 capitalize">{authUser.role}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  title="Sair / Trocar de Conta"
+                  className="p-1.5 text-stone-500 hover:text-rose-600 hover:bg-stone-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4 stroke-[1.8]" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsAuthModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[#143328] hover:bg-[#1a4436] rounded-xl transition-colors cursor-pointer shadow-xs"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Entrar / Cadastrar</span>
+              </button>
+            )}
           </div>
         </header>
 
@@ -996,35 +1140,22 @@ export default function App() {
               onUpdateSalonRule={() => {}}
               onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
               onCreateOnlineAppointment={handleCreateAppointment}
-              onCreateNewTenantSalon={(commercialName, cnpj, plan) => {
-                const newSalonId = `salon-${Date.now()}`;
-                const createdSalon: SalonTenant = {
-                  ...activeSalon,
-                  id: newSalonId,
-                  commercialName,
-                  legalName: `${commercialName} Beleza LTDA`,
-                  cnpj,
-                  plan,
-                  monthlyFee: plan === 'Essencial' ? 190 : plan === 'Signature' ? 390 : 690,
-                  theme: {
-                    ...activeSalon.theme,
-                    logoText: commercialName,
-                    shortIconText: commercialName.slice(0, 2).toUpperCase(),
-                    publicDomain: `agendar.${commercialName
-                      .toLowerCase()
-                      .replace(/[^a-z0-9]/g, '')}.com.br`,
-                  },
-                };
-                setSalons((prev) => [...prev, createdSalon]);
+              onCreateNewTenantSalon={async (commercialName, cnpj, plan) => {
+                const created = await createTenantInDb({ name: commercialName, cnpj });
+                if (created) {
+                  setSalons((prev) => [...prev, created]);
+                  setActiveSalonId(created.id);
+                }
               }}
-              onToggleTenantStatus={(salonId) => {
+              onToggleTenantStatus={async (salonId) => {
+                const s = salons.find((item) => item.id === salonId);
+                const nextStatus = s?.status === 'ativo' ? 'suspenso' : 'ativo';
                 setSalons((prev) =>
-                  prev.map((s) =>
-                    s.id === salonId
-                      ? { ...s, status: s.status === 'ativo' ? 'suspenso' : 'ativo' }
-                      : s
+                  prev.map((item) =>
+                    item.id === salonId ? { ...item, status: nextStatus } : item
                   )
                 );
+                updateTenantInDb(salonId, { status: nextStatus });
               }}
               onSwitchActiveSalon={(salonId) => {
                 setActiveSalonId(salonId);
@@ -1060,12 +1191,13 @@ export default function App() {
                     setActiveMenu('comandas');
                   }}
                   onOpenQuickExpenseModal={() => setActiveMenu('financeiro')}
-                  onUpdateDailyRevenueGoal={(newGoal) => {
+                  onUpdateDailyRevenueGoal={async (newGoal) => {
                     setSalons((prev) =>
                       prev.map((s) =>
                         s.id === activeSalon.id ? { ...s, dailyRevenueGoal: newGoal } : s
                       )
                     );
+                    updateTenantInDb(activeSalon.id, { dailyRevenueGoal: newGoal });
                     appendAudit(
                       'Atualização de Meta de Faturamento Diário',
                       'Painel de Operação',
@@ -1137,29 +1269,81 @@ export default function App() {
                   professionals={professionals}
                   commissions={commissions}
                   packages={packages}
-                  onCreateClient={(cli) => {
-                    const newClient = { ...cli, id: `cli-${Date.now()}` };
+                  onCreateClient={async (cli) => {
+                    const newId = generateUuid();
+                    const newClient = {
+                      ...cli,
+                      id: newId,
+                      salonId: activeSalon.id,
+                      internalCredit: 0,
+                      loyaltyPoints: 0,
+                      totalSpent: 0,
+                      tags: cli.tags || [],
+                      crmStage: cli.crmStage || 'novo_contato',
+                    };
                     setClients((prev) => [newClient, ...prev]);
-                    createClientInDb({ ...newClient, salonId: activeSalon.id });
+                    const saved = await createClientInDb({ ...newClient, salonId: activeSalon.id });
+                    if (saved?.id && saved.id !== newId) {
+                      setClients((prev) => prev.map((c) => (c.id === newId ? { ...c, id: saved.id } : c)));
+                    }
                   }}
-                  onCreateService={(srv) => {
-                    const newService = { ...srv, id: `srv-${Date.now()}` };
+                  onCreateService={async (srv) => {
+                    const newId = generateUuid();
+                    const newService = {
+                      ...srv,
+                      id: newId,
+                      salonId: activeSalon.id,
+                      technicalMaterials: srv.technicalMaterials || [],
+                    };
                     setServices((prev) => [newService, ...prev]);
-                    createServiceInDb({ ...newService, salonId: activeSalon.id });
+                    const saved = await createServiceInDb({ ...newService, salonId: activeSalon.id });
+                    if (saved?.id && saved.id !== newId) {
+                      setServices((prev) => prev.map((s) => (s.id === newId ? { ...s, id: saved.id } : s)));
+                    }
+                  }}
+                  onCreateProfessional={async (prof) => {
+                    const newId = generateUuid();
+                    const newProf = {
+                      ...prof,
+                      id: newId,
+                      salonId: activeSalon.id,
+                      unitId: activeSalon.units[0]?.id || selectedUnitId,
+                    };
+                    setProfessionals((prev) => [newProf, ...prev]);
+                    const saved = await createProfessionalInDb({ ...newProf, salonId: activeSalon.id });
+                    if (saved?.id && saved.id !== newId) {
+                      setProfessionals((prev) => prev.map((p) => (p.id === newId ? { ...p, id: saved.id } : p)));
+                    }
+                  }}
+                  onCreateProduct={async (prd) => {
+                    const newId = generateUuid();
+                    const newProd = {
+                      ...prd,
+                      id: newId,
+                      salonId: activeSalon.id,
+                      unitId: activeSalon.units[0]?.id || selectedUnitId,
+                    };
+                    setProducts((prev) => [newProd, ...prev]);
+                    const saved = await createProductInDb({ ...newProd, salonId: activeSalon.id });
+                    if (saved?.id && saved.id !== newId) {
+                      setProducts((prev) => prev.map((p) => (p.id === newId ? { ...p, id: saved.id } : p)));
+                    }
                   }}
                   onRecordStockMovement={(productId, type, quantity, reference) => {
                     const prd = products.find((p) => p.id === productId);
                     if (!prd) return;
+                    const nextStock = Math.max(0, prd.currentStock + quantity);
                     setProducts((prev) =>
                       prev.map((p) =>
                         p.id === productId
-                          ? { ...p, currentStock: Math.max(0, p.currentStock + quantity) }
+                          ? { ...p, currentStock: nextStock }
                           : p
                       )
                     );
+                    updateProductInDb(productId, { currentStock: nextStock });
                     setStockMovements((prev) => [
                       {
-                        id: `mov-${Date.now()}`,
+                        id: generateUuid(),
                         salonId: activeSalon.id,
                         productId,
                         productName: prd.name,
@@ -1357,6 +1541,7 @@ export default function App() {
                         s.id === salonId ? { ...s, commercialName, theme } : s
                       )
                     );
+                    updateTenantInDb(salonId, { theme, commercialName });
                     appendAudit(
                       'Atualização de Identidade Visual White-Label',
                       'Configurações → Aparência',
@@ -1369,11 +1554,27 @@ export default function App() {
                         s.id === salonId ? { ...s, commissionReleaseRule } : s
                       )
                     );
+                    updateTenantInDb(salonId, { commissionReleaseRule });
                   }}
                   onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
                   onCreateOnlineAppointment={handleCreateAppointment}
-                  onCreateNewTenantSalon={() => {}}
-                  onToggleTenantStatus={() => {}}
+                  onCreateNewTenantSalon={async (commercialName, cnpj) => {
+                    const created = await createTenantInDb({ name: commercialName, cnpj });
+                    if (created) {
+                      setSalons((prev) => [...prev, created]);
+                      setActiveSalonId(created.id);
+                    }
+                  }}
+                  onToggleTenantStatus={async (salonId) => {
+                    const s = salons.find((item) => item.id === salonId);
+                    const nextStatus = s?.status === 'ativo' ? 'suspenso' : 'ativo';
+                    setSalons((prev) =>
+                      prev.map((item) =>
+                        item.id === salonId ? { ...item, status: nextStatus } : item
+                      )
+                    );
+                    updateTenantInDb(salonId, { status: nextStatus });
+                  }}
                   onSwitchActiveSalon={setActiveSalonId}
                 />
               )}
@@ -1381,6 +1582,13 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* Modal / Tela de Autenticação e Cadastro */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={authUser ? () => setIsAuthModalOpen(false) : undefined}
+        onLoginSuccess={handleLoginSuccess}
+      />
     </div>
   );
 }

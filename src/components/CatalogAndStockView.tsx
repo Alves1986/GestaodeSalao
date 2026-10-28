@@ -39,6 +39,8 @@ interface CatalogAndStockViewProps {
   packages: ClientPackage[];
   onCreateClient: (client: Omit<ClientProfile, 'id'>) => void;
   onCreateService: (service: Omit<SalonService, 'id'>) => void;
+  onCreateProfessional?: (professional: Omit<Professional, 'id'>) => void;
+  onCreateProduct?: (product: Omit<ProductStock, 'id'>) => void;
   onRecordStockMovement: (
     productId: string,
     type: StockMovement['type'],
@@ -62,6 +64,8 @@ export const CatalogAndStockView: React.FC<CatalogAndStockViewProps> = ({
   packages,
   onCreateClient,
   onCreateService,
+  onCreateProfessional,
+  onCreateProduct,
   onRecordStockMovement,
   onApproveAndPayCommissions,
   onRedeemPackageSession,
@@ -100,12 +104,31 @@ export const CatalogAndStockView: React.FC<CatalogAndStockViewProps> = ({
   const [pkgTotalVal, setPkgTotalVal] = useState('1390');
   const [redemptionFeedback, setRedemptionFeedback] = useState<string | null>(null);
 
-  const unitClients = clients.filter((c) => c.salonId === salon.id);
-  const unitServices = services.filter((s) => s.salonId === salon.id);
-  const unitProducts = products.filter((p) => p.salonId === salon.id);
-  const unitProfessionals = professionals.filter((p) => p.salonId === salon.id);
-  const unitCommissions = commissions.filter((c) => c.salonId === salon.id);
-  const unitPackages = packages.filter((p) => p.salonId === salon.id);
+  // Professional form states
+  const [showProfForm, setShowProfForm] = useState(false);
+  const [profName, setProfName] = useState('');
+  const [profRoleTitle, setProfRoleTitle] = useState('Cabeleireiro(a)');
+  const [profSpecialty, setProfSpecialty] = useState('Cabelo');
+  const [profCommService, setProfCommService] = useState('50');
+  const [profCommProduct, setProfCommProduct] = useState('10');
+  const [profGoal, setProfGoal] = useState('5000');
+
+  // Product form states
+  const [showProdForm, setShowProdForm] = useState(false);
+  const [prodName, setProdName] = useState('');
+  const [prodBrand, setProdBrand] = useState('');
+  const [prodCategory, setProdCategory] = useState<'Coloração' | 'Tratamento' | 'Finalizadores' | 'Descartáveis & Estética' | 'Home Care Revenda'>('Home Care Revenda');
+  const [prodUnit, setProdUnit] = useState<'un' | 'ml' | 'g'>('un');
+  const [prodStock, setProdStock] = useState('10');
+  const [prodCost, setProdCost] = useState('30');
+  const [prodSale, setProdSale] = useState('75');
+
+  const unitClients = clients.filter((c) => !salon.id || !c.salonId || c.salonId === salon.id);
+  const unitServices = services.filter((s) => !salon.id || !s.salonId || s.salonId === salon.id);
+  const unitProducts = products.filter((p) => !salon.id || !p.salonId || p.salonId === salon.id);
+  const unitProfessionals = professionals.filter((p) => !salon.id || !p.salonId || p.salonId === salon.id);
+  const unitCommissions = commissions.filter((c) => !salon.id || !c.salonId || c.salonId === salon.id);
+  const unitPackages = packages.filter((p) => !salon.id || !p.salonId || p.salonId === salon.id);
 
   // 1. MÓDULO CLIENTES E CRM (Seção 8)
   if (activeMenu === 'clientes') {
@@ -490,7 +513,141 @@ export const CatalogAndStockView: React.FC<CatalogAndStockViewProps> = ({
               Separação entre produtos de revenda na vitrine e insumos fracionados (g/ml) consumidos no lavatório e colorimetria.
             </p>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setShowProdForm(!showProdForm)}
+            style={{ backgroundColor: salon.theme.primaryColor }}
+            className="px-4 py-2 rounded-xl text-white text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap shadow-xs"
+          >
+            {showProdForm ? 'Cancelar' : '+ Novo Produto'}
+          </button>
         </div>
+
+        {showProdForm && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!prodName.trim()) return;
+              onCreateProduct?.({
+                salonId: salon.id,
+                unitId: salon.units[0]?.id || 'unit-1',
+                sku: `SKU-${Date.now().toString().slice(-4)}`,
+                barcode: '',
+                name: prodName.trim(),
+                brand: prodBrand.trim() || 'Marca Própria',
+                category: prodCategory,
+                usageType: 'revenda',
+                unit: prodUnit,
+                currentStock: Number(prodStock) || 0,
+                minStock: 2,
+                costPrice: Number(prodCost) || 0,
+                salePrice: Number(prodSale) || 0,
+                saleCommissionPct: 10,
+                batchNumber: `L-${new Date().getFullYear()}-01`,
+                expiryDate: '2027-12-31',
+                supplierId: 'sup-1',
+                storageLocation: 'Estoque Central',
+              });
+              setProdName('');
+              setProdBrand('');
+              setShowProdForm(false);
+            }}
+            className="bg-white rounded-2xl p-5 border border-stone-200/80 space-y-4 shadow-sm"
+          >
+            <h2 className="text-sm font-semibold text-stone-900">Cadastrar Novo Produto no Estoque</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <input
+                type="text"
+                required
+                placeholder="Nome do Produto (Ex: Shampoo Hidratante)"
+                value={prodName}
+                onChange={(e) => setProdName(e.target.value)}
+                className="border border-stone-300 rounded-xl px-3 py-2 text-stone-900"
+              />
+              <input
+                type="text"
+                placeholder="Marca (Ex: L'Oréal, Wella)"
+                value={prodBrand}
+                onChange={(e) => setProdBrand(e.target.value)}
+                className="border border-stone-300 rounded-xl px-3 py-2 text-stone-900"
+              />
+              <select
+                value={prodCategory}
+                onChange={(e) => setProdCategory(e.target.value as any)}
+                className="border border-stone-300 rounded-xl px-3 py-2 bg-white text-stone-900"
+              >
+                <option value="Home Care Revenda">Home Care Revenda</option>
+                <option value="Tratamento">Tratamento</option>
+                <option value="Finalizadores">Finalizadores</option>
+                <option value="Coloração">Coloração</option>
+                <option value="Descartáveis & Estética">Descartáveis & Estética</option>
+              </select>
+              <div>
+                <label className="block text-[11px] text-stone-500 mb-1">Unidade</label>
+                <select
+                  value={prodUnit}
+                  onChange={(e) => setProdUnit(e.target.value as any)}
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 bg-white text-stone-900"
+                >
+                  <option value="un">Unidade (un)</option>
+                  <option value="ml">Mililitro (ml)</option>
+                  <option value="g">Grama (g)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] text-stone-500 mb-1">Estoque Inicial</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={prodStock}
+                  onChange={(e) => setProdStock(e.target.value)}
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] text-stone-500 mb-1">Preço Custo (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={prodCost}
+                    onChange={(e) => setProdCost(e.target.value)}
+                    className="w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-stone-500 mb-1">Preço Venda (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={prodSale}
+                    onChange={(e) => setProdSale(e.target.value)}
+                    className="w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowProdForm(false)}
+                className="px-3 py-1.5 rounded-xl border border-stone-300 text-stone-700 text-xs hover:bg-stone-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                style={{ backgroundColor: salon.theme.primaryColor }}
+                className="px-4 py-1.5 rounded-xl text-white text-xs font-semibold hover:opacity-90 cursor-pointer"
+              >
+                Salvar Produto
+              </button>
+            </div>
+          </form>
+        )}
 
         {/* Lançamento Rápido de Movimentação / Consumo Técnico (Seção 13) */}
         <form
@@ -650,17 +807,135 @@ export const CatalogAndStockView: React.FC<CatalogAndStockViewProps> = ({
   if (activeMenu === 'profissionais') {
     return (
       <div className="space-y-6">
-        <div className="border-b border-stone-200/80 pb-5">
-          <div className="text-xs text-stone-500 mb-1">
-            Jornadas, Intervalos, Metas Mensais & Regras Individualizadas de Comissão
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between border-b border-stone-200/80 pb-5">
+          <div>
+            <div className="text-xs text-stone-500 mb-1">
+              Jornadas, Intervalos, Metas Mensais & Regras Individualizadas de Comissão
+            </div>
+            <h1 className="text-3xl lg:text-4xl font-semibold tracking-tight text-stone-900">
+              Profissionais & Equipe Técnica
+            </h1>
+            <p className="text-sm text-stone-600 mt-1">
+              Configuração de comissão sobre serviço, venda de produtos e percentual de divisão com auxiliar técnico.
+            </p>
           </div>
-          <h1 className="text-3xl lg:text-4xl font-semibold tracking-tight text-stone-900">
-            Profissionais & Equipe Técnica
-          </h1>
-          <p className="text-sm text-stone-600 mt-1">
-            Configuração de comissão sobre serviço, venda de produtos e percentual de divisão com auxiliar técnico.
-          </p>
+
+          <button
+            type="button"
+            onClick={() => setShowProfForm(!showProfForm)}
+            style={{ backgroundColor: salon.theme.primaryColor }}
+            className="px-4 py-2 rounded-xl text-white text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap shadow-xs"
+          >
+            {showProfForm ? 'Cancelar' : '+ Novo Profissional'}
+          </button>
         </div>
+
+        {showProfForm && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!profName.trim()) return;
+              onCreateProfessional?.({
+                salonId: salon.id,
+                unitId: salon.units[0]?.id || 'unit-1',
+                name: profName.trim(),
+                roleTitle: profRoleTitle.trim(),
+                specialty: profSpecialty.trim(),
+                avatarInitials: profName.trim().slice(0, 2).toUpperCase(),
+                commissionServicePct: Number(profCommService) || 0,
+                commissionProductPct: Number(profCommProduct) || 0,
+                assistantSplitPct: 0,
+                monthlyGoal: Number(profGoal) || 0,
+                workingHours: {
+                  start: '09:00',
+                  end: '19:00',
+                  lunchStart: '12:00',
+                  lunchEnd: '13:00',
+                },
+                active: true,
+                chairLabel: 'Cadeira Geral',
+                enabledServiceIds: [],
+              });
+              setProfName('');
+              setShowProfForm(false);
+            }}
+            className="bg-white rounded-2xl p-5 border border-stone-200/80 space-y-4 shadow-sm"
+          >
+            <h2 className="text-sm font-semibold text-stone-900">Cadastrar Novo Profissional</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <input
+                type="text"
+                required
+                placeholder="Nome do Profissional (Ex: Mariana Costa)"
+                value={profName}
+                onChange={(e) => setProfName(e.target.value)}
+                className="border border-stone-300 rounded-xl px-3 py-2 text-stone-900"
+              />
+              <input
+                type="text"
+                placeholder="Cargo (Ex: Cabeleireira Senior)"
+                value={profRoleTitle}
+                onChange={(e) => setProfRoleTitle(e.target.value)}
+                className="border border-stone-300 rounded-xl px-3 py-2 text-stone-900"
+              />
+              <input
+                type="text"
+                placeholder="Especialidade (Ex: Mechas, Corte)"
+                value={profSpecialty}
+                onChange={(e) => setProfSpecialty(e.target.value)}
+                className="border border-stone-300 rounded-xl px-3 py-2 text-stone-900"
+              />
+              <div>
+                <label className="block text-[11px] text-stone-500 mb-1">Comissão Serviços (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={profCommService}
+                  onChange={(e) => setProfCommService(e.target.value)}
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] text-stone-500 mb-1">Comissão Produtos (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={profCommProduct}
+                  onChange={(e) => setProfCommProduct(e.target.value)}
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] text-stone-500 mb-1">Meta Mensal (R$)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={profGoal}
+                  onChange={(e) => setProfGoal(e.target.value)}
+                  className="w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowProfForm(false)}
+                className="px-3 py-1.5 rounded-xl border border-stone-300 text-stone-700 text-xs hover:bg-stone-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                style={{ backgroundColor: salon.theme.primaryColor }}
+                className="px-4 py-1.5 rounded-xl text-white text-xs font-semibold hover:opacity-90 cursor-pointer"
+              >
+                Salvar Profissional
+              </button>
+            </div>
+          </form>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {unitProfessionals.map((prof) => (
