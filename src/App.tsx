@@ -13,6 +13,7 @@ import {
   ChevronRight,
   ClipboardList,
   CreditCard,
+  Database,
   FileText,
   Gift,
   LayoutDashboard,
@@ -83,6 +84,16 @@ import { ComandasAndAttendanceView } from './components/ComandasAndAttendanceVie
 import { CatalogAndStockView } from './components/CatalogAndStockView';
 import { FinancialAndReportsView } from './components/FinancialAndReportsView';
 import { SettingsAndPortalsView } from './components/SettingsAndPortalsView';
+import {
+  DbStatus,
+  getDbStatus,
+  fetchTenantsFromDb,
+  fetchProfessionalsFromDb,
+  fetchServicesFromDb,
+  fetchClientsFromDb,
+  createClientInDb,
+  createServiceInDb,
+} from './services/dbClient';
 
 const MENU_ITEMS: {
   id: SalonMenuId;
@@ -125,7 +136,7 @@ export default function App() {
   const [comandas, setComandas] = useState<Comanda[]>(INITIAL_COMANDAS);
   const [selectedComandaId, setSelectedComandaId] = useState<string | null>('cmd-2041');
   const [clients, setClients] = useState<ClientProfile[]>(INITIAL_CLIENTS);
-  const [professionals] = useState<Professional[]>(INITIAL_PROFESSIONALS);
+  const [professionals, setProfessionals] = useState<Professional[]>(INITIAL_PROFESSIONALS);
   const [services, setServices] = useState<SalonService[]>(INITIAL_SERVICES);
   const [products, setProducts] = useState<ProductStock[]>(INITIAL_PRODUCTS);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(INITIAL_STOCK_MOVEMENTS);
@@ -137,6 +148,51 @@ export default function App() {
   const [automations, setAutomations] = useState<AutomationRule[]>(INITIAL_AUTOMATIONS);
   const [technicalRecords, setTechnicalRecords] = useState<TechnicalRecord[]>(INITIAL_TECHNICAL_RECORDS);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(INITIAL_AUDIT_LOGS);
+
+  // Status de Conexão com o Neon Lakebase Postgres
+  const [dbStatus, setDbStatus] = useState<DbStatus | null>(null);
+  const [isDbLoading, setIsDbLoading] = useState<boolean>(true);
+
+  // Sincronização inicial em tempo real com o Neon DB
+  useEffect(() => {
+    let isMounted = true;
+    async function initDbSync() {
+      try {
+        setIsDbLoading(true);
+        const [status, fetchedTenants, fetchedProfs, fetchedServices, fetchedClients] = await Promise.all([
+          getDbStatus(),
+          fetchTenantsFromDb(),
+          fetchProfessionalsFromDb(),
+          fetchServicesFromDb(),
+          fetchClientsFromDb(),
+        ]);
+
+        if (isMounted) {
+          if (status) setDbStatus(status);
+          if (fetchedTenants.length > 0) setSalons(fetchedTenants);
+          if (fetchedProfs.length > 0) setProfessionals(fetchedProfs);
+          if (fetchedServices.length > 0) setServices(fetchedServices);
+          if (fetchedClients.length > 0) setClients(fetchedClients);
+          setIsDbLoading(false);
+        }
+      } catch (e) {
+        console.warn('Erro ao sincronizar com Neon DB:', e);
+        if (isMounted) setIsDbLoading(false);
+      }
+    }
+
+    initDbSync();
+
+    const interval = setInterval(async () => {
+      const s = await getDbStatus();
+      if (isMounted && s) setDbStatus(s);
+    }, 20000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const activeSalon = salons.find((s) => s.id === activeSalonId) || salons[0];
   const allowedMenus = getAllowedMenusForRole(currentRole);
@@ -483,7 +539,7 @@ export default function App() {
       return {
         ...nextCmd,
         paymentStatus: totals.paymentStatus,
-        comandaStatus: totals.paymentStatus === 'pago' ? 'liquidada' : 'fechada_pendente',
+        comandaStatus: totals.paymentStatus === 'pago' ? ('liquidada' as const) : ('fechada_pendente' as const),
         closedAt: totals.paymentStatus === 'pago' ? '15:25' : undefined,
       };
     });
@@ -839,8 +895,23 @@ export default function App() {
             </div>
           </div>
 
-          {/* Zona 3: Data & Ação Rápida para Página Pública do Cliente */}
+          {/* Zona 3: Data & Conexão Neon & Ação Rápida */}
           <div className="flex items-center gap-2.5 shrink-0">
+            {/* Indicador de Fluidez e Conexão em Tempo Real com Neon Lakebase Postgres */}
+            <div 
+              title={dbStatus ? `Banco: ${dbStatus.stats?.database_name || 'neondb'} (Latência: ${dbStatus.latencyMs}ms)` : 'Conectando ao Neon...'}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/90 border border-emerald-200/80 text-[11px] text-emerald-800 font-medium cursor-default shadow-xs"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${dbStatus ? 'bg-emerald-400' : 'bg-amber-400'} opacity-75`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${dbStatus ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+              </span>
+              <Database className="w-3.5 h-3.5 text-emerald-700 stroke-[1.8]" />
+              <span className="font-mono-tabular">
+                {dbStatus ? `Neon: ${dbStatus.latencyMs}ms` : isDbLoading ? 'Conectando DB...' : 'Neon DB'}
+              </span>
+            </div>
+
             <span className="hidden xl:inline text-xs text-stone-500 font-mono-tabular whitespace-nowrap">
               26 Out 2026
             </span>
@@ -1066,12 +1137,16 @@ export default function App() {
                   professionals={professionals}
                   commissions={commissions}
                   packages={packages}
-                  onCreateClient={(cli) =>
-                    setClients((prev) => [{ ...cli, id: `cli-${Date.now()}` }, ...prev])
-                  }
-                  onCreateService={(srv) =>
-                    setServices((prev) => [{ ...srv, id: `srv-${Date.now()}` }, ...prev])
-                  }
+                  onCreateClient={(cli) => {
+                    const newClient = { ...cli, id: `cli-${Date.now()}` };
+                    setClients((prev) => [newClient, ...prev]);
+                    createClientInDb({ ...newClient, salonId: activeSalon.id });
+                  }}
+                  onCreateService={(srv) => {
+                    const newService = { ...srv, id: `srv-${Date.now()}` };
+                    setServices((prev) => [newService, ...prev]);
+                    createServiceInDb({ ...newService, salonId: activeSalon.id });
+                  }}
                   onRecordStockMovement={(productId, type, quantity, reference) => {
                     const prd = products.find((p) => p.id === productId);
                     if (!prd) return;

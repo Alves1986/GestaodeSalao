@@ -165,7 +165,7 @@ export interface ClientProfile {
   birthDate: string;
   cpf?: string;
   preferredProfessionalId?: string;
-  origin: 'Instagram' | 'Indicação' | 'Google' | 'Passante' | 'Página Online';
+  origin: 'Instagram' | 'Indicação' | 'Google' | 'Passante' | 'Página Online' | 'WhatsApp';
   tags: string[];
   internalCredit: number;
   loyaltyPoints: number;
