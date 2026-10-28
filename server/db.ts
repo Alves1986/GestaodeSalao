@@ -10,13 +10,17 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config();
 
-const connectionString = process.env.DATABASE_URL;
+// Fallback para o banco configurado do projeto caso a variável não tenha sido injetada no Vercel
+const DEFAULT_DATABASE_URL =
+  'postgresql://neondb_owner:npg_ogF1YLt7xCal@ep-bitter-sky-b6s0cry8-pooler.c-2.sa-east-1.aws.neon.tech/neondb?sslmode=require';
+
+const connectionString = process.env.DATABASE_URL || DEFAULT_DATABASE_URL;
 
 if (!connectionString) {
   console.warn('DATABASE_URL is not set. Database operations will fail.');
 }
 
-export const sql = neon(connectionString || '');
+export const sql = neon(connectionString);
 
 /**
  * Execute a query with RLS or Bypass in a single transactional round-trip.

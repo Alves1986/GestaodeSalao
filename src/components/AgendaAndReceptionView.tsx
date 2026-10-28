@@ -89,9 +89,9 @@ export const AgendaAndReceptionView: React.FC<AgendaAndReceptionViewProps> = ({
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       return (
-        a.clientName.toLowerCase().includes(q) ||
-        a.serviceName.toLowerCase().includes(q) ||
-        a.professionalName.toLowerCase().includes(q)
+        (a.clientName || '').toLowerCase().includes(q) ||
+        (a.serviceName || '').toLowerCase().includes(q) ||
+        (a.professionalName || '').toLowerCase().includes(q)
       );
     })
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
